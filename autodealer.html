@@ -602,15 +602,26 @@ async function startApp() {
   animateStat();
   setTimeout(() => { lo.classList.add('hidden'); setTimeout(() => lo.style.display='none', 600); }, 500);
 
-  // Polling ogni 45s — tutti i visitatori vedono gli aggiornamenti in tempo reale
-  setInterval(async () => {
-    try {
-      const cars = await dbGetCars();
-      state.cars = (cars || []).map(rowToCar);
-      renderCars();
-      if (document.getElementById('admin-panel').classList.contains('open')) renderAdminCars();
-    } catch {}
-  }, 45000);
+  // Polling ogni 60s — singolo intervallo globale, protetto da flag anti-sovrapposizione
+  if (!window._pollStarted) {
+    window._pollStarted = true;
+    let _polling = false;
+    setInterval(async () => {
+      if (_polling) return;
+      _polling = true;
+      try {
+        const cars = await dbGetCars();
+        const newJson = JSON.stringify(cars);
+        if (newJson !== window._lastCarsJson) {
+          window._lastCarsJson = newJson;
+          state.cars = (cars || []).map(rowToCar);
+          renderCars();
+          if (document.getElementById('admin-panel').classList.contains('open')) renderAdminCars();
+        }
+      } catch {}
+      _polling = false;
+    }, 60000);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
