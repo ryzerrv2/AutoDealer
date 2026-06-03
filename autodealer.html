@@ -16,23 +16,7 @@
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4;}
 
-/* ── CONFIG BANNER ─────────────────────────────── */
-#config-banner{
-  position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.95);
-  display:flex;align-items:center;justify-content:center;padding:20px;
-}
-.config-box{
-  background:var(--surface);border:1px solid var(--border);border-radius:18px;
-  width:100%;max-width:520px;padding:36px;
-}
-.config-logo{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--accent);letter-spacing:4px;text-align:center;margin-bottom:4px;}
-.config-sub{text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:28px;}
-.config-step{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;}
-.config-num{background:var(--accent);color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px;}
-.config-text{font-size:13px;color:var(--text-muted);line-height:1.6;}
-.config-text code{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--accent);font-size:12px;}
-.config-divider{height:1px;background:var(--border);margin:22px 0;}
-.config-error{background:rgba(224,80,80,.1);border:1px solid rgba(224,80,80,.3);color:var(--danger);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px;display:none;}
+
 
 /* ── NAVBAR ─────────────────────────────────────── */
 #navbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:66px;background:rgba(10,10,11,.9);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);}
@@ -237,96 +221,6 @@ footer{background:var(--surface);border-top:1px solid var(--border);padding:36px
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════
-     CONFIG BANNER — visibile solo finché non configurato
-════════════════════════════════════════════════ -->
-<!-- <div id="config-banner">
-  <div class="config-box">
-    <div class="config-logo">AUTOELITE</div>
-    <div class="config-sub">Configura il database Supabase per attivare il sito</div>
-
-    <div class="config-step">
-      <div class="config-num">1</div>
-      <div class="config-text">Vai su <strong>supabase.com</strong> → crea un nuovo progetto gratuito</div>
-    </div>
-    <div class="config-step">
-      <div class="config-num">2</div>
-      <div class="config-text">Nel <strong>SQL Editor</strong> esegui lo script qui sotto per creare le tabelle:<br>
-        <code>cars</code> e <code>settings</code> con RLS abilitato
-      </div>
-    </div>
-    <div class="config-step">
-      <div class="config-num">3</div>
-      <div class="config-text">Vai su <strong>Project Settings → API</strong> e copia <em>Project URL</em> e <em>anon public key</em></div>
-    </div>
-
-    <div class="config-divider"></div>
-
-    <div class="config-error" id="config-error"></div>
-
-    <div class="form-group">
-      <label class="form-label">Supabase Project URL</label>
-      <input class="form-input" id="cfg-url" placeholder="https://xyzxyz.supabase.co" autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Supabase Anon Key</label>
-      <input class="form-input" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5..." autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Password Admin (scegli una password per accedere al pannello)</label>
-      <input class="form-input" id="cfg-pass" type="password" placeholder="Minimo 6 caratteri">
-    </div>
-
-    <button class="btn btn-accent" style="width:100%;margin-top:4px;" id="cfg-btn" onclick="saveConfig()">
-      Connetti e Avvia il Sito →
-    </button>
-
-    <div class="config-divider"></div>
-    <details style="cursor:pointer;">
-      <summary style="font-size:12px;color:var(--text-muted);user-select:none;">📋 Mostra script SQL da eseguire su Supabase</summary>
-      <pre style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:11px;color:var(--text-muted);overflow-x:auto;margin-top:10px;line-height:1.6;white-space:pre-wrap;">create table if not exists cars (
-  id bigserial primary key,
-  brand text not null,
-  model text not null,
-  year int,
-  km int,
-  price numeric,
-  fuel text,
-  transmission text,
-  category text,
-  hp int,
-  color text,
-  emoji text,
-  status text default 'disponibile',
-  description text,
-  optionals text[],
-  images text[],
-  created_at timestamptz default now()
-);
-
-create table if not exists settings (
-  key text primary key,
-  value text
-);
-
-alter table cars enable row level security;
-alter table settings enable row level security;
-
-create policy "Public read cars"
-  on cars for select using (true);
-create policy "Anon insert cars"
-  on cars for insert with check (true);
-create policy "Anon update cars"
-  on cars for update using (true);
-create policy "Anon delete cars"
-  on cars for delete using (true);
-create policy "Public read settings"
-  on settings for select using (true);
-create policy "Anon write settings"
-  on settings for all using (true);</pre>
-    </details>
-  </div>
-</div> -->
 
 <!-- ════════════ LOADING ════════════ -->
 <div id="loading-overlay" style="display:none;">
@@ -430,7 +324,6 @@ create policy "Anon write settings"
 <footer>
   <div class="footer-logo">AUTO<span style="color:var(--text)">ELITE</span></div>
   <div style="color:var(--text-muted);font-size:13px;">© 2025 AutoElite — Powered by Supabase</div>
-  <button class="btn btn-ghost btn-sm" onclick="resetConfig()" title="Riconfigura DB" style="opacity:.4;font-size:11px;">⚙ Riconfigura DB</button>
 </footer>
 
 <button id="admin-fab" onclick="openAdmin()" title="Pannello Admin">⚙</button>
@@ -682,74 +575,7 @@ const state = {
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  CONFIG / SETUP
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function loadConfig() {
-  try {
-    const c = localStorage.getItem('ae_config');
-    if (!c) return false;
-    const { url, key, pass } = JSON.parse(c);
-    if (!url || !key) return false;
-    SB_URL = url.replace(/\/$/, '');
-    SB_KEY = key;
-    if (pass) state.adminPassword = pass;
-    return true;
-  } catch { return false; }
-}
-
-async function saveConfig() {
-  const url  = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
-  const key  = document.getElementById('cfg-key').value.trim();
-  const pass = document.getElementById('cfg-pass').value.trim();
-  const err  = document.getElementById('config-error');
-  const btn  = document.getElementById('cfg-btn');
-  err.style.display = 'none';
-
-  if (!url.startsWith('https://') || !url.includes('supabase')) {
-    err.textContent = 'URL non valido — deve essere https://xxx.supabase.co';
-    err.style.display = 'block'; return;
-  }
-  if (key.length < 30) {
-    err.textContent = 'Anon key troppo corta — controllala su Supabase → Settings → API';
-    err.style.display = 'block'; return;
-  }
-  if (pass.length > 0 && pass.length < 6) {
-    err.textContent = 'Password troppo corta (minimo 6 caratteri)';
-    err.style.display = 'block'; return;
-  }
-
-  btn.disabled = true; btn.textContent = 'Connessione in corso...';
-  SB_URL = url; SB_KEY = key;
-  if (pass) state.adminPassword = pass;
-
-  // Test connessione
-  try {
-    await sbFetch('cars?select=id&limit=1');
-  } catch(e) {
-    err.textContent = 'Connessione fallita: ' + e.message + '. Controlla URL, key e che la tabella "cars" esista.';
-    err.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Connetti e Avvia il Sito →';
-    SB_URL = ''; SB_KEY = ''; return;
-  }
-
-  // Salva in localStorage
-  localStorage.setItem('ae_config', JSON.stringify({
-    url, key, pass: pass || state.adminPassword
-  }));
-
-  document.getElementById('config-banner').style.display = 'none';
-  startApp();
-  btn.disabled = false; btn.textContent = 'Connetti e Avvia il Sito →';
-}
-
-function resetConfig() {
-  if (!confirm('Vuoi riconfigurare il database? Perderai la sessione corrente.')) return;
-  localStorage.removeItem('ae_config');
-  location.reload();
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  INIT
+//  INIT — avvio diretto, DB hardcoded nel sorgente
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function startApp() {
   const lo = document.getElementById('loading-overlay');
@@ -761,10 +587,10 @@ async function startApp() {
     const [cars, settings] = await Promise.all([dbGetCars(), dbGetSettings()]);
 
     state.cars = (cars || []).map(rowToCar);
-    if (settings.waNumber)    state.settings.waNumber = settings.waNumber;
-    if (settings.name)        state.settings.name     = settings.name;
-    if (settings.address)     state.settings.address  = settings.address;
-    if (settings.adminPass)   state.adminPassword     = settings.adminPass;
+    if (settings.waNumber)  state.settings.waNumber = settings.waNumber;
+    if (settings.name)      state.settings.name     = settings.name;
+    if (settings.address)   state.settings.address  = settings.address;
+    if (settings.adminPass) state.adminPassword     = settings.adminPass;
 
     setSyncStatus('', 'Supabase ✓');
   } catch(e) {
@@ -776,7 +602,7 @@ async function startApp() {
   animateStat();
   setTimeout(() => { lo.classList.add('hidden'); setTimeout(() => lo.style.display='none', 600); }, 500);
 
-  // Polling ogni 45s per aggiornamenti da altri utenti
+  // Polling ogni 45s — tutti i visitatori vedono gli aggiornamenti in tempo reale
   setInterval(async () => {
     try {
       const cars = await dbGetCars();
@@ -788,10 +614,7 @@ async function startApp() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  if (loadConfig()) {
-    document.getElementById('config-banner').style.display = 'none';
-    startApp();
-  }
+  startApp();   // ← avvio immediato, nessun banner di configurazione
   // drag & drop setup
   const ua = document.getElementById('upload-area');
   ua.addEventListener('dragover', e => { e.preventDefault(); ua.classList.add('drag'); });
