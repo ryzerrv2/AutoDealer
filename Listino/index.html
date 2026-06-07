@@ -433,6 +433,20 @@ body {
 .sync-dot.error   { background: var(--red); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+/* ─── CONTAINER VARIANTS ──────────────────────────── */
+.container-nav     { display: flex; align-items: center; justify-content: space-between; height: 100%; }
+.container-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
+.container-footer  { display: flex; align-items: center; gap: 20px; width: 100%; }
+
+/* ─── EQUIPAGGIAMENTO GROUPS ──────────────────────── */
+.eq-group        { margin-bottom: 12px; }
+.eq-group:last-child { margin-bottom: 0; }
+.eq-group-title  {
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  margin-bottom: 6px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ─── RESPONSIVE ──────────────────────────────────── */
 @media (max-width: 720px) {
   #hero-bar { padding: 16px; }
@@ -482,7 +496,7 @@ body {
 
 <!-- NAVBAR -->
 <nav id="navbar">
-  <div class="container" style="display:flex;align-items:center;justify-content:space-between;height:100%">
+  <div class="container container-nav">
   <a class="nav-brand" href="#">
     <div class="nav-logo-box">AE</div>
     <span class="nav-brand-text">Auto<span>Elite</span></span>
@@ -506,7 +520,7 @@ body {
   <div class="hero-title">Trova la tua prossima auto <span id="hero-count"></span></div>
   <div class="search-row">
     <div class="search-input-wrap">
-      <input type="text" id="search-input" placeholder="Marca, modello, categoria..." oninput="renderCards()">
+      <input type="text" id="search-input" placeholder="Marca, modello, categoria..." oninput="debouncedRenderCards()">
     </div>
     <select class="search-select" id="filter-fuel" onchange="renderCards()">
       <option value="">Tutti i carburanti</option>
@@ -527,7 +541,7 @@ body {
 
 <!-- FILTERS STRIP -->
 <div id="filters-strip">
-  <div class="container" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%">
+  <div class="container container-filters">
   <span class="strip-label">Categoria:</span>
   <button class="chip active" onclick="setFilter('all',this)">Tutti</button>
   <button class="chip" onclick="setFilter('disponibile',this)">Disponibili</button>
@@ -579,7 +593,7 @@ body {
 
 <!-- FOOTER -->
 <footer id="footer">
-  <div class="container" style="display:flex;align-items:center;gap:20px;width:100%">
+  <div class="container container-footer">
   <span class="footer-stat"><span class="sync-dot" id="sync-dot"></span><strong id="fb-total">—</strong> veicoli</span>
   <span class="footer-stat"><strong id="fb-avail" class="clr-green">—</strong> disponibili</span>
   <span id="sync-label" class="clr-muted">Caricamento...</span>
@@ -607,7 +621,23 @@ async function dbGetSettings() {
   return o;
 }
 function rowToCar(r) {
-  return { id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km, price:r.price, fuel:r.fuel, transmission:r.transmission, category:r.category, hp:r.hp, color:r.color, emoji:r.emoji, status:r.status, desc:r.description, optionals:r.optionals||[], images:r.images||[] };
+  return {
+    id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km,
+    price:r.price, fuel:r.fuel, transmission:r.transmission,
+    category:r.category, hp:r.hp, color:r.color, emoji:r.emoji,
+    status:r.status, desc:r.description, optionals:r.optionals||[], images:r.images||[],
+    carrozzeria:r.carrozzeria, tipo_veicolo:r.tipo_veicolo,
+    trazione:r.trazione, posti:r.posti, porte:r.porte,
+    per_neopatentati:r.per_neopatentati,
+    mese_immatricolazione:r.mese_immatricolazione,
+    anno_produzione:r.anno_produzione, revisione:r.revisione,
+    cilindrata:r.cilindrata, valvole:r.valvole,
+    cilindri:r.cilindri, peso:r.peso,
+    classe_emissioni:r.classe_emissioni, emissioni_co2:r.emissioni_co2,
+    colore_interno:r.colore_interno, tipo_interno:r.tipo_interno,
+    colore_tetto:r.colore_tetto,
+    eq_comfort:r.eq_comfort||[], eq_media:r.eq_media||[], eq_sicurezza:r.eq_sicurezza||[],
+  };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -648,8 +678,7 @@ async function init() {
   }
   document.getElementById('nav-wa-btn').onclick = () => openWhatsApp('Salve! Vorrei informazioni sui veicoli disponibili.');
   document.getElementById('nav-address').textContent = state.settings.address;
-  renderCards();
-  updateFooter();
+  requestAnimationFrame(() => { renderCards(); updateFooter(); });
   // Polling
   let _busy = false;
   setInterval(async () => {
@@ -706,7 +735,11 @@ function renderCards() {
   const sortVal  = document.getElementById('sort-select').value;
 
   let list = state.cars.filter(c => {
-    const mf = state.filter==='all' || c.status===state.filter || c.category===state.filter;
+    const mf = state.filter === 'all'
+      || state.filter === 'disponibile' && (c.status === 'disponibile' || c.status === 'promo')
+      || state.filter === 'promo'       && c.status === 'promo'
+      || state.filter === 'venduta'     && c.status === 'venduta'
+      || c.category === state.filter;
     const ms = !search || (c.brand||'').toLowerCase().includes(search) || (c.model||'').toLowerCase().includes(search) || (c.category||'').toLowerCase().includes(search);
     const mfuel  = !fuel  || c.fuel === fuel;
     const mprice = (c.price||0) <= maxPrice;
@@ -778,6 +811,11 @@ function renderCards() {
   }).join('');
 }
 
+let _cardTimer = null;
+function debouncedRenderCards() {
+  clearTimeout(_cardTimer);
+  _cardTimer = setTimeout(() => requestAnimationFrame(renderCards), 120);
+}
 function setFilter(f, btn) {
   state.filter = f;
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
@@ -844,22 +882,70 @@ function openModal(id) {
       </div>
     </div>`;
 
-  // ── Full spec table ──
-  const specRows = [
-    ['Cambio',     car.transmission],
-    ['Colore',     car.color],
-    ['Categoria',  car.category],
-    ['Carburante', car.fuel],
-    ['Anno',       car.year],
-    ['Chilometri', car.km ? fmtKm(car.km) : null],
-    ['Potenza',    car.hp ? car.hp+' CV' : null],
-  ].filter(([,v])=>v).map(([k,v])=>`<div class="spec-row"><span class="spec-row-key">${k}</span><span class="spec-row-val">${esc(String(v))}</span></div>`).join('');
+  // ── Helper ──
+  const sr = (k,v) => v!=null&&v!==''&&v!==undefined ? `<div class="spec-row"><span class="spec-row-key">${k}</span><span class="spec-row-val">${esc(String(v))}</span></div>` : '';
 
-  // ── Optional ──
-  const optSection = car.optionals?.length ? `
+  // ── Sezione Dati di base ──
+  const specsBase = [
+    sr('Carrozzeria',    car.carrozzeria),
+    sr('Tipo veicolo',   car.tipo_veicolo),
+    sr('Trazione',       car.trazione),
+    sr('Posti',          car.posti),
+    sr('Porte',          car.porte),
+    sr('Neopatentati',   car.per_neopatentati ? 'Sì' : null),
+  ].filter(Boolean).join('');
+
+  // ── Sezione Cronologia ──
+  const specsCron = [
+    sr('Immatricolazione', car.mese_immatricolazione),
+    sr('Anno produzione',  car.anno_produzione),
+    sr('Revisione',        car.revisione),
+  ].filter(Boolean).join('');
+
+  // ── Sezione Dati tecnici ──
+  const specsTech = [
+    sr('Cambio',       car.transmission),
+    sr('Potenza',      car.hp ? car.hp+' CV' : null),
+    sr('Cilindrata',   car.cilindrata),
+    sr('Cilindri',     car.cilindri),
+    sr('Valvole',      car.valvole),
+    sr('Peso a vuoto', car.peso),
+  ].filter(Boolean).join('');
+
+  // ── Sezione Ambiente ──
+  const specsAmb = [
+    sr('Carburante',       car.fuel),
+    sr('Classe emissioni', car.classe_emissioni),
+    sr('Emissioni CO₂',    car.emissioni_co2),
+  ].filter(Boolean).join('');
+
+  // ── Sezione Colore & Interni ──
+  const specsColor = [
+    sr('Colore esterno',  car.color),
+    sr('Colore interno',  car.colore_interno),
+    sr('Tipo interno',    car.tipo_interno),
+    sr('Colore tetto',    car.colore_tetto),
+  ].filter(Boolean).join('');
+
+  // Spec rows combined (fallback per modal-main)
+  const specRows = specsBase + specsCron + specsTech + specsAmb + specsColor;
+
+  // ── Equipaggiamento ──
+  const eqGroups = [
+    { title: '🪑 Comfort',           list: car.eq_comfort   },
+    { title: '🎵 Intrattenimento',    list: car.eq_media     },
+    { title: '🛡️ Sicurezza',         list: car.eq_sicurezza },
+    { title: '⭐ Optional aggiuntivi',list: car.optionals    },
+  ].filter(g => g.list?.length);
+
+  const optSection = eqGroups.length ? `
     <div class="modal-section">
-      <div class="modal-section-title">Optional & Dotazioni</div>
-      <div class="opt-grid">${car.optionals.map(o=>`<span class="opt-chip">✓ ${esc(o)}</span>`).join('')}</div>
+      <div class="modal-section-title">Equipaggiamento & Optional</div>
+      ${eqGroups.map(g => `
+        <div class="eq-group">
+          <div class="eq-group-title">${g.title}</div>
+          <div class="opt-grid">${g.list.map(o=>`<span class="opt-chip">✓ ${esc(o)}</span>`).join('')}</div>
+        </div>`).join('')}
     </div>` : '';
 
   // ── Descrizione ──
@@ -877,20 +963,25 @@ function openModal(id) {
     </div>`).join('');
 
   // ── Fill main panel ──
+  const sectionHtml = (title, rows) => rows
+    ? `<div class="modal-section"><div class="modal-section-title">${title}</div><div class="spec-rows">${rows}</div></div>`
+    : '';
+
   document.getElementById('m-main').innerHTML = `
     <div class="modal-make">${esc(car.brand)}</div>
     <div class="modal-title">${esc(car.model)}</div>
     <div class="modal-sub">${car.year||''} · ${fmtKm(car.km)} · ${car.fuel||''} · ${car.transmission||''}</div>
     <div class="modal-status-row">${statusPills}</div>
     ${highlights}
-    <div class="modal-section">
-      <div class="modal-section-title">Dati Tecnici</div>
-      <div class="spec-rows">${specRows}</div>
-    </div>
     ${descSection}
+    ${sectionHtml('📋 Dati di Base',         specsBase)}
+    ${sectionHtml('📅 Cronologia Veicolo',    specsCron)}
+    ${sectionHtml('🔧 Dati Tecnici',          specsTech)}
+    ${sectionHtml('🌿 Ambiente',              specsAmb)}
+    ${sectionHtml('🎨 Colore & Interni',      specsColor)}
     ${optSection}
     <div class="modal-section">
-      <div class="modal-section-title">Servizi del Concessionario</div>
+      <div class="modal-section-title">✅ Servizi del Concessionario</div>
       <div class="dealer-notes">${notesHtml}</div>
     </div>
   `;

@@ -426,8 +426,8 @@ footer {
 .detail-thumb.active { border-color: var(--accent); opacity: 1; }
 .specs-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
   margin-bottom: 18px;
 }
 .spec-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 14px; }
@@ -435,6 +435,9 @@ footer {
 .spec-val  { font-size: 14px; font-weight: 600; margin-top: 3px; }
 .detail-desc { color: var(--text-muted); font-size: 14px; line-height: 1.7; margin-bottom: 16px; }
 .detail-tags { margin-bottom: 14px; }
+.eq-section { margin-bottom: 10px; }
+.eq-title   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 5px; }
+.eq-tags    { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-muted); margin: 2px; }
 .detail-footer { display: flex; gap: 10px; align-items: center; padding-top: 16px; border-top: 1px solid var(--border); }
 .detail-price-wrap { margin-right: auto; }
@@ -465,6 +468,15 @@ footer {
 .form-textarea  { resize: vertical; min-height: 76px; }
 .form-grid      { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-actions   { display: flex; gap: 10px; margin-top: 6px; }
+.form-checkbox-group { display: flex; align-items: center; gap: 10px; padding-top: 22px; }
+.form-checkbox       { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+.form-checkbox-label { margin: 0; }
+.form-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--accent);
+  padding: 14px 0 6px; border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
 .form-actions .btn-accent { flex: 1; }
 
 /* ── IMAGE UPLOAD ────────────────────────────────── */
@@ -705,12 +717,13 @@ footer {
 <div id="filters">
   <button class="filter-btn active" onclick="setFilter('all',this)">Tutti</button>
   <button class="filter-btn" onclick="setFilter('disponibile',this)">Disponibili</button>
+  <button class="filter-btn" onclick="setFilter('promo',this)">🔥 Promo</button>
   <button class="filter-btn" onclick="setFilter('SUV',this)">SUV</button>
   <button class="filter-btn" onclick="setFilter('Berlina',this)">Berlina</button>
   <button class="filter-btn" onclick="setFilter('Cabrio',this)">Cabrio</button>
   <button class="filter-btn" onclick="setFilter('Sportiva',this)">Sportive</button>
   <div class="filter-search">
-    <input type="text" placeholder="Cerca marca, modello..." id="search-input" oninput="renderCars()">
+    <input type="text" placeholder="Cerca marca, modello..." id="search-input" oninput="debouncedRender()">
   </div>
 </div>
 
@@ -911,7 +924,120 @@ footer {
         </div>
       </div>
       <div class="form-group"><label class="form-label">Descrizione</label><textarea class="form-textarea" id="f-desc" placeholder="Descrizione del veicolo..."></textarea></div>
-      <div class="form-group"><label class="form-label">Optional (separati da virgola)</label><input class="form-input" id="f-optionals" placeholder="Navigatore, Sensori Parcheggio, Clima Bizona"></div>
+      <div class="form-group"><label class="form-label">Optional aggiuntivi (separati da virgola)</label><input class="form-input" id="f-optionals" placeholder="Navigatore, Sensori Parcheggio, Tetto panoramico"></div>
+
+      <!-- ═══ DATI DI BASE ═══ -->
+      <div class="form-section-title">📋 Dati di Base</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Carrozzeria</label>
+          <select class="form-select" id="f-carrozzeria">
+            <option value="">—</option><option>Berlina</option><option>SUV</option>
+            <option>Coupé</option><option>Cabrio</option><option>Station Wagon</option>
+            <option>Monovolume</option><option>Pickup</option><option>Van</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Tipo Veicolo</label>
+          <select class="form-select" id="f-tipo-veicolo">
+            <option value="">—</option><option>Usato</option><option>Nuovo</option><option>Km 0</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Trazione</label>
+          <select class="form-select" id="f-trazione">
+            <option value="">—</option><option>Anteriore</option><option>Posteriore</option>
+            <option>Integrale</option><option>4x4</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Posti</label>
+          <input class="form-input" id="f-posti" type="number" min="1" max="9" placeholder="5">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Porte</label>
+          <input class="form-input" id="f-porte" type="number" min="2" max="5" placeholder="5">
+        </div>
+        <div class="form-group form-checkbox-group">
+          <input type="checkbox" id="f-neopatentati" class="form-checkbox">
+          <label for="f-neopatentati" class="form-label form-checkbox-label">Per neopatentati</label>
+        </div>
+      </div>
+
+      <!-- ═══ CRONOLOGIA ═══ -->
+      <div class="form-section-title">📅 Cronologia Veicolo</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Mese/Anno immatricolazione</label>
+          <input class="form-input" id="f-mese-imm" placeholder="es. 04/2022">
+        </div>
+        <div class="form-group"><label class="form-label">Anno di produzione</label>
+          <input class="form-input" id="f-anno-prod" type="number" placeholder="2022">
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Revisione (scadenza)</label>
+        <input class="form-input" id="f-revisione" placeholder="es. 04/2026">
+      </div>
+
+      <!-- ═══ DATI TECNICI ═══ -->
+      <div class="form-section-title">🔧 Dati Tecnici</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Cilindrata (cm³)</label>
+          <input class="form-input" id="f-cilindrata" placeholder="es. 1.199 cm³">
+        </div>
+        <div class="form-group"><label class="form-label">Cilindri</label>
+          <input class="form-input" id="f-cilindri" type="number" placeholder="4">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Valvole</label>
+          <input class="form-input" id="f-valvole" type="number" placeholder="16">
+        </div>
+        <div class="form-group"><label class="form-label">Peso a vuoto (kg)</label>
+          <input class="form-input" id="f-peso" placeholder="es. 980 kg">
+        </div>
+      </div>
+
+      <!-- ═══ AMBIENTE ═══ -->
+      <div class="form-section-title">🌿 Ambiente</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Classe emissioni</label>
+          <select class="form-select" id="f-classe-em">
+            <option value="">—</option><option>Euro 3</option><option>Euro 4</option>
+            <option>Euro 5</option><option>Euro 6</option><option>Euro 6d</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Emissioni CO₂ (g/km)</label>
+          <input class="form-input" id="f-co2" placeholder="es. 118 g/km">
+        </div>
+      </div>
+
+      <!-- ═══ COLORE & INTERNI ═══ -->
+      <div class="form-section-title">🎨 Colore & Interni</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Colore interno</label>
+          <input class="form-input" id="f-colore-interno" placeholder="es. Nero, Beige, Grigio">
+        </div>
+        <div class="form-group"><label class="form-label">Tipo interno</label>
+          <select class="form-select" id="f-tipo-interno">
+            <option value="">—</option><option>Tessuto</option><option>Pelle</option>
+            <option>Pelle sintetica</option><option>Alcantara</option><option>Misto</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Colore tetto</label>
+        <input class="form-input" id="f-colore-tetto" placeholder="es. Nero, Bianco, Stesso della carrozzeria">
+      </div>
+
+      <!-- ═══ EQUIPAGGIAMENTO ═══ -->
+      <div class="form-section-title">⚙️ Equipaggiamento</div>
+      <div class="form-group"><label class="form-label">Comfort (separati da virgola)</label>
+        <textarea class="form-textarea" id="f-eq-comfort" rows="2" placeholder="Alzacristalli elettrici, Climatizzatore, Specchietti elettrici, Volante multifunzione"></textarea>
+      </div>
+      <div class="form-group"><label class="form-label">Intrattenimento / Media (separati da virgola)</label>
+        <textarea class="form-textarea" id="f-eq-media" rows="2" placeholder="Autoradio, Bluetooth, Computer di bordo, USB, Apple CarPlay"></textarea>
+      </div>
+      <div class="form-group"><label class="form-label">Sicurezza (separati da virgola)</label>
+        <textarea class="form-textarea" id="f-eq-sicurezza" rows="2" placeholder="ABS, Airbag laterali, Chiusura centralizzata, ESP, Fendinebbia"></textarea>
+      </div>
       <div class="form-actions">
         <button class="btn btn-accent" id="save-car-btn" onclick="saveCar()">Salva Veicolo</button>
         <button class="btn btn-outline" onclick="closeModal('car-form-modal')">Annulla</button>
@@ -1012,10 +1138,49 @@ async function dbUpsertSetting(key, value) {
 }
 
 function carToRow(c) {
-  return { brand:c.brand, model:c.model, year:c.year||null, km:c.km||null, price:c.price||null, fuel:c.fuel||null, transmission:c.transmission||null, category:c.category||null, hp:c.hp||null, color:c.color||null, emoji:c.emoji||null, status:c.status||'disponibile', description:c.desc||null, optionals:c.optionals||[], images:c.images||[] };
+  return {
+    brand:c.brand, model:c.model, year:c.year||null, km:c.km||null,
+    price:c.price||null, fuel:c.fuel||null, transmission:c.transmission||null,
+    category:c.category||null, hp:c.hp||null, color:c.color||null,
+    emoji:c.emoji||null, status:c.status||'disponibile',
+    description:c.desc||null, optionals:c.optionals||[], images:c.images||[],
+    // Dati di base
+    carrozzeria:c.carrozzeria||null, tipo_veicolo:c.tipo_veicolo||null,
+    trazione:c.trazione||null, posti:c.posti||null, porte:c.porte||null,
+    per_neopatentati:c.per_neopatentati||false,
+    // Cronologia
+    mese_immatricolazione:c.mese_immatricolazione||null,
+    anno_produzione:c.anno_produzione||null, revisione:c.revisione||null,
+    // Dati tecnici
+    cilindrata:c.cilindrata||null, valvole:c.valvole||null,
+    cilindri:c.cilindri||null, peso:c.peso||null,
+    // Ambiente
+    classe_emissioni:c.classe_emissioni||null, emissioni_co2:c.emissioni_co2||null,
+    // Colore & interni
+    colore_interno:c.colore_interno||null, tipo_interno:c.tipo_interno||null,
+    colore_tetto:c.colore_tetto||null,
+    // Equipaggiamento categorie
+    eq_comfort:c.eq_comfort||[], eq_media:c.eq_media||[], eq_sicurezza:c.eq_sicurezza||[],
+  };
 }
 function rowToCar(r) {
-  return { id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km, price:r.price, fuel:r.fuel, transmission:r.transmission, category:r.category, hp:r.hp, color:r.color, emoji:r.emoji, status:r.status, desc:r.description, optionals:r.optionals||[], images:r.images||[] };
+  return {
+    id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km,
+    price:r.price, fuel:r.fuel, transmission:r.transmission,
+    category:r.category, hp:r.hp, color:r.color, emoji:r.emoji,
+    status:r.status, desc:r.description, optionals:r.optionals||[], images:r.images||[],
+    carrozzeria:r.carrozzeria, tipo_veicolo:r.tipo_veicolo,
+    trazione:r.trazione, posti:r.posti, porte:r.porte,
+    per_neopatentati:r.per_neopatentati,
+    mese_immatricolazione:r.mese_immatricolazione,
+    anno_produzione:r.anno_produzione, revisione:r.revisione,
+    cilindrata:r.cilindrata, valvole:r.valvole,
+    cilindri:r.cilindri, peso:r.peso,
+    classe_emissioni:r.classe_emissioni, emissioni_co2:r.emissioni_co2,
+    colore_interno:r.colore_interno, tipo_interno:r.tipo_interno,
+    colore_tetto:r.colore_tetto,
+    eq_comfort:r.eq_comfort||[], eq_media:r.eq_media||[], eq_sicurezza:r.eq_sicurezza||[],
+  };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1051,8 +1216,10 @@ async function startApp() {
     setSyncStatus('error', 'Errore DB');
     showToast('Errore connessione: ' + e.message, 'error');
   }
-  renderCars();
-  animateStat();
+  requestAnimationFrame(() => {
+    renderCars();
+    animateStat();
+  });
   setTimeout(() => { lo.classList.add('hidden'); setTimeout(() => lo.style.display = 'none', 600); }, 500);
   if (!window._pollStarted) {
     window._pollStarted = true;
@@ -1066,8 +1233,10 @@ async function startApp() {
         if (j !== window._lastCarsJson) {
           window._lastCarsJson = j;
           state.cars = (cars||[]).map(rowToCar);
-          renderCars();
-          if (document.getElementById('admin-panel').classList.contains('open')) renderAdminCars();
+          requestAnimationFrame(() => {
+            renderCars();
+            if (document.getElementById('admin-panel').classList.contains('open')) renderAdminCars();
+          });
         }
       } catch {}
       _busy = false;
@@ -1102,7 +1271,11 @@ function renderCars() {
   const grid   = document.getElementById('cars-grid');
   const search = (document.getElementById('search-input').value||'').toLowerCase();
   const list   = state.cars.filter(c => {
-    const mf = state.activeFilter === 'all' || c.status === state.activeFilter || c.category === state.activeFilter;
+    const mf = state.activeFilter === 'all'
+      || state.activeFilter === 'disponibile' && (c.status === 'disponibile' || c.status === 'promo')
+      || state.activeFilter === 'promo'       && c.status === 'promo'
+      || state.activeFilter === 'venduta'     && c.status === 'venduta'
+      || c.category === state.activeFilter;
     const ms = !search || (c.brand||'').toLowerCase().includes(search) || (c.model||'').toLowerCase().includes(search) || (c.category||'').toLowerCase().includes(search);
     return mf && ms;
   });
@@ -1149,6 +1322,11 @@ function renderCars() {
   }).join('');
 }
 
+let _renderTimer = null;
+function debouncedRender() {
+  clearTimeout(_renderTimer);
+  _renderTimer = setTimeout(() => requestAnimationFrame(renderCars), 120);
+}
 function setFilter(f, btn) {
   state.activeFilter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -1178,14 +1356,36 @@ function openCarDetail(id) {
     gal.innerHTML = `<div class="detail-gallery-placeholder">${car.emoji||'🚗'}</div>`;
     thumbs.style.display = 'none';
   }
+  const specRow = (k,v) => v ? `<div class="spec-item"><div class="spec-key">${k}</div><div class="spec-val">${esc(String(v))}</div></div>` : '';
   document.getElementById('detail-specs').innerHTML = [
-    ['Anno', car.year||'—'], ['Km', fmtKm(car.km)+' km'],
-    ['Carburante', car.fuel], ['Cambio', car.transmission],
-    ['Potenza', car.hp ? car.hp+' CV' : '—'], ['Colore', car.color||'—'],
-    ['Categoria', car.category],
-    ['Stato', car.status==='disponibile'?'✅ Disponibile':car.status==='venduta'?'❌ Venduta':'🔥 Promozione'],
-  ].map(([k,v]) => `<div class="spec-item"><div class="spec-key">${k}</div><div class="spec-val">${v}</div></div>`).join('');
-  document.getElementById('detail-tags').innerHTML = (car.optionals||[]).map(o => `<span class="tag">${esc(o)}</span>`).join('');
+    specRow('Anno', car.year), specRow('Km', fmtKm(car.km)+' km'),
+    specRow('Carburante', car.fuel), specRow('Cambio', car.transmission),
+    specRow('Potenza', car.hp ? car.hp+' CV' : null), specRow('Colore', car.color),
+    specRow('Categoria', car.category), specRow('Carrozzeria', car.carrozzeria),
+    specRow('Tipo veicolo', car.tipo_veicolo), specRow('Trazione', car.trazione),
+    specRow('Posti', car.posti), specRow('Porte', car.porte),
+    specRow('Per neopatentati', car.per_neopatentati ? 'Sì' : null),
+    specRow('Immatricolazione', car.mese_immatricolazione), specRow('Anno produzione', car.anno_produzione),
+    specRow('Revisione', car.revisione), specRow('Cilindrata', car.cilindrata),
+    specRow('Cilindri', car.cilindri), specRow('Valvole', car.valvole),
+    specRow('Peso a vuoto', car.peso), specRow('Classe emissioni', car.classe_emissioni),
+    specRow('Emissioni CO₂', car.emissioni_co2),
+    specRow('Colore interno', car.colore_interno), specRow('Tipo interno', car.tipo_interno),
+    specRow('Colore tetto', car.colore_tetto),
+    specRow('Stato', car.status==='disponibile'?'✅ Disponibile':car.status==='venduta'?'❌ Venduta':'🔥 Promozione'),
+  ].filter(Boolean).join('');
+
+  // Equipaggiamento categorizzato
+  const eqSections = [
+    ['🪑 Comfort',             car.eq_comfort],
+    ['🎵 Intrattenimento',     car.eq_media],
+    ['🛡️ Sicurezza',          car.eq_sicurezza],
+  ].filter(([,arr]) => arr?.length);
+  const eqHtml = eqSections.map(([title, arr]) =>
+    `<div class="eq-section"><div class="eq-title">${title}</div><div class="eq-tags">${arr.map(o=>`<span class="tag">${esc(o)}</span>`).join('')}</div></div>`
+  ).join('');
+  const optHtml = (car.optionals||[]).length ? `<div class="eq-section"><div class="eq-title">⭐ Optional aggiuntivi</div><div class="eq-tags">${car.optionals.map(o=>`<span class="tag">${esc(o)}</span>`).join('')}</div></div>` : '';
+  document.getElementById('detail-tags').innerHTML = eqHtml + optHtml;
   document.getElementById('detail-wa-btn').onclick = () => openWhatsApp(`Salve! Sono interessato al veicolo: ${car.brand} ${car.model} ${car.year} a € ${fmtPrice(car.price)}. Potete darmi maggiori informazioni?`);
   openModal('car-detail-modal');
 }
@@ -1289,7 +1489,26 @@ function openCarForm(id) {
   f('f-category', car?.category||'Berlina');
   f('f-hp', car?.hp);             f('f-color', car?.color);
   f('f-emoji', car?.emoji||'🚗'); f('f-status', car?.status||'disponibile');
-  f('f-desc', car?.desc);         f('f-optionals', car?.optionals?.join(', ')||'');
+  f('f-desc', car?.desc); f('f-optionals', car?.optionals?.join(', ')||'');
+  // Dati di base
+  f('f-carrozzeria', car?.carrozzeria); f('f-tipo-veicolo', car?.tipo_veicolo);
+  f('f-trazione', car?.trazione); f('f-posti', car?.posti); f('f-porte', car?.porte);
+  document.getElementById('f-neopatentati').checked = car?.per_neopatentati||false;
+  // Cronologia
+  f('f-mese-imm', car?.mese_immatricolazione); f('f-anno-prod', car?.anno_produzione);
+  f('f-revisione', car?.revisione);
+  // Dati tecnici
+  f('f-cilindrata', car?.cilindrata); f('f-valvole', car?.valvole);
+  f('f-cilindri', car?.cilindri); f('f-peso', car?.peso);
+  // Ambiente
+  f('f-classe-em', car?.classe_emissioni); f('f-co2', car?.emissioni_co2);
+  // Colore & interni
+  f('f-colore-interno', car?.colore_interno); f('f-tipo-interno', car?.tipo_interno);
+  f('f-colore-tetto', car?.colore_tetto);
+  // Equipaggiamento
+  f('f-eq-comfort',   car?.eq_comfort?.join(', ')||'');
+  f('f-eq-media',     car?.eq_media?.join(', ')||'');
+  f('f-eq-sicurezza', car?.eq_sicurezza?.join(', ')||'');
   car?.images?.forEach(src => addPendingImage(src));
   openModal('car-form-modal');
 }
@@ -1312,6 +1531,8 @@ function handleFileUpload(input) {
     const r = new FileReader(); r.onload = e => addPendingImage(e.target.result); r.readAsDataURL(file);
   });
 }
+const gv = id => (document.getElementById(id)?.value||'').trim();
+const splitArr = s => s ? s.split(',').map(x=>x.trim()).filter(Boolean) : [];
 async function saveCar() {
   const brand = document.getElementById('f-brand').value.trim();
   const model = document.getElementById('f-model').value.trim();
@@ -1333,6 +1554,26 @@ async function saveCar() {
     desc:         document.getElementById('f-desc').value.trim(),
     optionals:    optStr ? optStr.split(',').map(s=>s.trim()).filter(Boolean) : [],
     images:       [...state.pendingImages],
+    // Dati di base
+    carrozzeria:  gv('f-carrozzeria'), tipo_veicolo: gv('f-tipo-veicolo'),
+    trazione:     gv('f-trazione'),
+    posti:        parseInt(gv('f-posti'))||null, porte: parseInt(gv('f-porte'))||null,
+    per_neopatentati: document.getElementById('f-neopatentati')?.checked||false,
+    // Cronologia
+    mese_immatricolazione: gv('f-mese-imm'), anno_produzione: gv('f-anno-prod'),
+    revisione:    gv('f-revisione'),
+    // Dati tecnici
+    cilindrata:   gv('f-cilindrata'), valvole: parseInt(gv('f-valvole'))||null,
+    cilindri:     parseInt(gv('f-cilindri'))||null, peso: gv('f-peso'),
+    // Ambiente
+    classe_emissioni: gv('f-classe-em'), emissioni_co2: gv('f-co2'),
+    // Colore & interni
+    colore_interno: gv('f-colore-interno'), tipo_interno: gv('f-tipo-interno'),
+    colore_tetto:   gv('f-colore-tetto'),
+    // Equipaggiamento
+    eq_comfort:   splitArr(gv('f-eq-comfort')),
+    eq_media:     splitArr(gv('f-eq-media')),
+    eq_sicurezza: splitArr(gv('f-eq-sicurezza')),
   };
   const btn = document.getElementById('save-car-btn');
   btn.disabled = true; btn.textContent = 'Salvataggio...';
@@ -1348,7 +1589,8 @@ async function saveCar() {
       showToast('Veicolo aggiunto','success');
     }
     setSyncStatus('','Supabase ✓');
-    renderCars(); renderAdminCars(); closeModal('car-form-modal');
+    requestAnimationFrame(() => { renderCars(); renderAdminCars(); });
+    closeModal('car-form-modal');
   } catch(e) { setSyncStatus('error','Errore'); showToast('Errore: '+e.message,'error'); }
   btn.disabled = false; btn.textContent = 'Salva Veicolo';
 }
@@ -1356,7 +1598,7 @@ async function deleteCar(id) {
   const car = state.cars.find(c=>c.id===id);
   if (!car||!confirm(`Eliminare "${car.brand} ${car.model}"?`)) return;
   setSyncStatus('syncing','Eliminazione...');
-  try { await dbDeleteCar(id); state.cars = state.cars.filter(c=>c.id!==id); setSyncStatus('','Supabase ✓'); renderCars(); renderAdminCars(); showToast('Veicolo eliminato','info'); }
+  try { await dbDeleteCar(id); state.cars = state.cars.filter(c=>c.id!==id); setSyncStatus('','Supabase ✓'); requestAnimationFrame(() => { renderCars(); renderAdminCars(); }); showToast('Veicolo eliminato','info'); }
   catch(e) { setSyncStatus('error','Errore'); showToast('Errore: '+e.message,'error'); }
 }
 
