@@ -557,15 +557,15 @@
 			#modal {
 				background: var(--surface);
 				border-radius: 14px;
-				width: 50%;
-				max-width: 1060px;
-				overflow: hidden;
-				box-shadow: var(--shadow-lg);
-				animation: modalIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+				width: 65%;
+				max-width: 1100px;
+				height: 90vh; /* Fissa l'altezza al 90% dello schermo dell'utente */
 				margin: auto;
-				max-height: calc(100vh - 40px);
 				display: flex;
 				flex-direction: column;
+				overflow: hidden; /* Blocca lo scroll globale: scrolleranno solo i contenuti interni */
+				box-shadow: var(--shadow-lg);
+				animation: modalIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 			}
 			@keyframes modalIn {
 				from {
@@ -579,14 +579,50 @@
 			}
 
 			/* Modal hero gallery */
-			.modal-gallery {
-				flex-shrink: 0;
-				width: 100%;
-				height: 360px;
+			/* Struttura superiore (Griglia a 2 colonne) */
+			.modal-top {
+				display: grid;
+				grid-template-columns: 1fr 340px;
+				border-bottom: 1px solid var(--border);
+				flex: 0 0 40%; /* <-- PERCENTUALE: Il top occupa il 35% della modale */
+				min-height: 0; /* Regola fondamentale per far funzionare Flexbox */
+			}
+
+			.modal-gallery-wrap {
+				display: flex;
+				flex-direction: column;
 				background: #111;
+				height: 100%;
+				min-height: 0;
+			}
+			.modal-gallery {
+				flex: 1;
+				width: 100%;
 				position: relative;
 				overflow: hidden;
 			}
+
+			.modal-side {
+				padding: 16px 20px;
+				background: var(--surface2);
+				display: flex;
+				flex-direction: column;
+				gap: 0;
+				border-left: 1px solid var(--border);
+				overflow-y: auto; /* Se le info laterali sono troppe, scorrono da sole */
+			}
+
+			/* 3. Il Main prende TUTTO IL RESTO (flex: 1) e scorre */
+			.modal-main {
+				padding: 32px 40px;
+				background: var(--surface);
+				flex: 1; /* <-- IL RESTO: Si prende automaticamente il restante 65% */
+				overflow-y: auto; /* Scorrimento indipendente per il testo principale */
+			}
+			
+			/* Contenuti */
+			
+
 			.modal-gallery img {
 				width: 100%;
 				height: 100%;
@@ -653,12 +689,7 @@
 			}
 
 			/* Modal body */
-			.modal-body {
-				display: grid;
-				grid-template-columns: 1fr 340px;
-				flex: 1;
-				overflow: hidden;
-			}
+			
 			.modal-main {
 				padding: 24px;
 				border-right: 1px solid var(--border);
@@ -1098,18 +1129,27 @@
 				.cards-grid {
 					grid-template-columns: 1fr;
 				}
-				.modal-body {
-					grid-template-columns: 1fr;
+				#modal {
+					height: 95vh;
+					display: block; /* Spegne Flexbox per far scorrere tutto naturalmente */
+					overflow-y: auto; /* Riattiva lo scroll globale per il touch */
+				}
+				.modal-top {
+					display: flex;
+					flex-direction: column;
+					flex: none; /* Rimuove il 35% fisso su mobile */
+				}
+				.modal-gallery-wrap {
+					height: 35vh; /* Su cellulare l'immagine occuperà il 35% dell'altezza dello schermo */
 				}
 				.modal-side {
+					border-left: none;
 					border-top: 1px solid var(--border);
+					overflow-y: visible; /* Disattiva lo scroll interno */
 				}
 				.modal-main {
-					max-height: none;
-				}
-				.modal-gallery {
-					flex-shrink: 0;
-					height: 240px;
+					padding: 24px 20px;
+					overflow-y: visible; /* Disattiva lo scroll interno */
 				}
 				.modal-highlights {
 					grid-template-columns: repeat(2, 1fr);
@@ -1335,16 +1375,17 @@
 		<!-- MODAL -->
 		<div id="modal-overlay" onclick="handleOverlayClick(event)">
 			<div id="modal">
-				<!-- Gallery -->
-				<div class="modal-gallery" id="m-gallery">
-					<button class="modal-gallery-close" onclick="closeModal()">✕</button>
-				</div>
-				<div class="modal-thumbs-strip" id="m-thumbs" hidden></div>
-				<!-- Body -->
-				<div class="modal-body">
-					<div class="modal-main" id="m-main"></div>
+				<div class="modal-top">
+					<div class="modal-gallery-wrap">
+						<div class="modal-gallery" id="m-gallery">
+							<button class="modal-gallery-close" onclick="closeModal()">✕</button>
+						</div>
+						<div class="modal-thumbs-strip" id="m-thumbs" hidden></div>
+					</div>
 					<div class="modal-side" id="m-side"></div>
 				</div>
+				
+				<div class="modal-main" id="m-main"></div>
 			</div>
 		</div>
 
@@ -1664,33 +1705,33 @@
 							.join("");
 
 						return `
-    <div class="car-card" onclick="openModal(${car.id})">
-      <div class="card-photo">
-        ${img}
-        ${badges ? `<div class="card-badges">${badges}</div>` : ""}
-        ${car.images?.length > 1 && !(car.status === "in arrivo") ? `<div class="card-photo-count">📷 ${car.images.length}
-				${car.status === "in arrivo" ? `<div class = "">`: ""}
-			</div>` : ""}
-      </div>
-      <div class="card-body">
-        <div class="card-make">${esc(car.brand)}</div>
-        <div class="card-title">${esc(car.model)}</div>
-        <div class="card-specs">
-          <span class="card-spec"><span class="card-spec-icon">📅</span>${car.year || "—"}</span>
-          <span class="card-spec"><span class="card-spec-icon">🛣️</span>${fmtKm(car.km)}</span>
-          <span class="card-spec"><span class="card-spec-icon">⛽</span>${car.fuel || "—"}</span>
-          ${car.hp ? `<span class="card-spec"><span class="card-spec-icon">⚡</span>${car.hp} CV</span>` : ""}
-        </div>
-        <div class="card-price-row">
-          <div>
-            <div class="card-price">${fmtP(car.price)}</div>
-            <div class="card-price-vat">IVA inclusa</div>
-          </div>
-          <div class="card-financing">o in comode rate →</div>
-        </div>
-        <div class="card-pills">${pills}</div>
-      </div>
-    </div>`;
+						<div class="car-card" onclick="openModal(${car.id})">
+							<div class="card-photo">
+								${img}
+								${badges ? `<div class="card-badges">${badges}</div>` : ""}
+								${car.images?.length > 1 && !(car.status === "in arrivo") ? `<div class="card-photo-count">📷 ${car.images.length}
+								${car.status === "in arrivo" ? `<div class = "">`: ""}
+							</div>` : ""}
+							</div>
+							<div class="card-body">
+								<div class="card-make">${esc(car.brand)}</div>
+								<div class="card-title">${esc(car.model)}</div>
+								<div class="card-specs">
+									<span class="card-spec"><span class="card-spec-icon">📅</span>${car.year || "—"}</span>
+									<span class="card-spec"><span class="card-spec-icon">🛣️</span>${fmtKm(car.km)}</span>
+									<span class="card-spec"><span class="card-spec-icon">⛽</span>${car.fuel || "—"}</span>
+									${car.hp ? `<span class="card-spec"><span class="card-spec-icon">⚡</span>${car.hp} CV</span>` : ""}
+								</div>
+								<div class="card-price-row">
+									<div>
+										<div class="card-price">${fmtP(car.price)}</div>
+										<div class="card-price-vat">IVA inclusa</div>
+									</div>
+									<div class="card-financing">o in comode rate →</div>
+								</div>
+								<div class="card-pills">${pills}</div>
+							</div>
+						</div>`;
 					})
 					.join("");
 			}
@@ -1910,10 +1951,11 @@
     <div class="modal-make">${esc(car.brand)}</div>
     <div class="modal-title">${esc(car.model)}</div>
     <div class="modal-sub">${car.year || ""} · ${fmtKm(car.km)} · ${car.fuel || ""} · ${car.transmission || ""}</div>
+		${/*
     <div class="modal-section">
       <div class="modal-section-title">✅ Servizi del Concessionario</div>
       <div class="dealer-notes">${notesHtml}</div>
-    </div>
+    </div>*/""}
     ${highlights}
     ${descSection}
     ${sectionHtml("📋 Dati di Base", specsBase)}
@@ -1925,31 +1967,32 @@
     
   `;
 
-				// ── Fill side panel ──
+				// ── Fill side panel (side-financing) ──
+				
 				document.getElementById("m-side").innerHTML = `
-    <div class="side-price-box">
-      <div class="side-price">${fmtP(car.price)}</div>
-      <div class="side-vat">IVA inclusa · Prezzo trattabile</div>
-      <div class="side-financing">
-        <div class="side-fin-title">💳 Finanziamento disponibile</div>
-        <div class="side-fin-text">Scopri la rata mensile — risposta in 24 ore, senza impegno</div>
-      </div>
-    </div>
-    <div class="side-cta-stack">
-      <button class="btn-wa-cta" onclick="openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}) al prezzo di ${fmtP(car.price)}. Potete darmi maggiori informazioni?')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        Scrivici su WhatsApp
-      </button>
-      <button class="btn-secondary" onclick="closeModal()">← Torna alla lista</button>
-    </div>
-    <div class="side-trust">
-      <div class="side-trust-title">Perché sceglierci</div>
-      <div class="trust-item"><span class="trust-icon">🛡️</span> Garanzia 12 mesi inclusa</div>
-      <div class="trust-item"><span class="trust-icon">🔧</span> Revisione tecnica certificata</div>
-      <div class="trust-item"><span class="trust-icon">📋</span> Storico tagliandi verificato</div>
-      <div class="trust-item"><span class="trust-icon">💳</span> Finanziamento rapido</div>
-    </div>
-  `;
+				<div class="side-price-box">
+					<div class="side-price">${fmtP(car.price)}</div>
+					<div class="side-vat">IVA inclusa · Prezzo al pubblico</div>
+					${/*<div class="side-financing">
+        		<div class="side-fin-title">💳 Finanziamento disponibile</div>
+        		<div class="side-fin-text">Scopri la rata mensile — risposta in 24 ore, senza impegno</div>
+      		</div>*/""}
+				</div>
+    		<div class="side-cta-stack">
+					<button class="btn-wa-cta" onclick="openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}) al prezzo di ${fmtP(car.price)}. Potete darmi maggiori informazioni?')">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+						Scrivici su WhatsApp
+					</button>
+					<button class="btn-secondary" onclick="closeModal()">← Torna alla lista</button>
+				</div>
+				${/*<div class="side-trust">
+					<div class="side-trust-title">Perché sceglierci</div>
+					<div class="trust-item"><span class="trust-icon">🛡️</span> Garanzia 12 mesi inclusa</div>
+					<div class="trust-item"><span class="trust-icon">🔧</span> Revisione tecnica certificata</div>
+					<div class="trust-item"><span class="trust-icon">📋</span> Storico tagliandi verificato</div>
+					<div class="trust-item"><span class="trust-icon">💳</span> Finanziamento rapido</div>
+				</div>*/""}
+			`;
 
 				document.getElementById("modal-overlay").classList.add("open");
 				document.body.style.overflow = "hidden";
