@@ -583,6 +583,10 @@
 				background: rgba(0, 0, 0, 0.6);
 				color: #fff;
 			}
+			.badge-arriving {
+				background: var(--accent2);
+				color: #fff;
+			}
 			.car-body {
 				padding: 18px 20px;
 			}
@@ -2685,7 +2689,9 @@
         <div class="car-badges">
           ${car.status === "venduta" ? '<span class="badge badge-sold">Venduta</span>' : ""}
           ${car.status === "promo" ? '<span class="badge badge-promo">Promo</span>' : ""}
-          ${car.images?.length > 1 ? `<span class="badge badge-count">📷 ${car.images.length}</span>` : ""}
+          ${car.images?.length > 1 && !(car.status === "in arrivo") ? `<span class="badge badge-count">📷 ${car.images.length}</span>` : ""}
+					${car.status === "in arrivo" ? `<span class = "badge badge-arriving"> In arrivo </span>` : ""}
+
         </div>
       </div>
       <div class="car-body">
@@ -2748,7 +2754,6 @@
 						<span class="foto-demo-icon">📸</span>
 						<span>Le foto sono esclusivamente dimostrative. Il veicolo è in arrivo e potrebbe differire da quanto mostrato, foto aggiornate nei prossimi giorni.</span>
 						<button class="foto-demo-close" onclick="this.parentElement.remove()">✕</button>`;
-					console.log(gal);
 					gal.after(banner); // autodealer
 				}
 				const thumbs = document.getElementById("detail-thumbs");
@@ -3077,7 +3082,6 @@
 				const brand = document.getElementById("f-brand").value.trim();
 				const model = document.getElementById("f-model").value.trim();
 				const price = parseFloat(document.getElementById("f-price").value);
-				console.log(price)
 				if (!brand || !model || isNaN(price)) {
 					showToast("Compila almeno: Marca, Modello e Prezzo", "error");
 					return;

@@ -410,6 +410,10 @@
 				background: var(--green);
 				color: #fff;
 			}
+			.badge-arriving {
+				background: var(--orange);
+				color: #fff;
+			}
 
 			/* Card body */
 			.card-body {
@@ -1637,6 +1641,9 @@
 							car.status === "venduta"
 								? `<span class="card-badge badge-sold">Venduta</span>`
 								: "",
+							car.status === "in arrivo"
+								? `<span class="card-badge badge-arriving"> In arrivo </span>`
+								: "",
 							car.year &&
 							new Date().getFullYear() - car.year <= 2 &&
 							car.status !== "venduta"
@@ -1661,7 +1668,9 @@
       <div class="card-photo">
         ${img}
         ${badges ? `<div class="card-badges">${badges}</div>` : ""}
-        ${car.images?.length > 1 ? `<div class="card-photo-count">📷 ${car.images.length}</div>` : ""}
+        ${car.images?.length > 1 && !(car.status === "in arrivo") ? `<div class="card-photo-count">📷 ${car.images.length}
+				${car.status === "in arrivo" ? `<div class = "">`: ""}
+			</div>` : ""}
       </div>
       <div class="card-body">
         <div class="card-make">${esc(car.brand)}</div>
