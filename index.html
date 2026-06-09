@@ -912,7 +912,7 @@
 				letter-spacing: 0.5px;
 			}
 			.spec-val {
-				font-size: calc(var(--font-desc) - 0.2rem);
+				font-size: var(--font-desc);
 				font-weight: 600;
 				margin-top: 3px;
 			}
@@ -1981,6 +1981,7 @@
 								<option value="disponibile">Disponibile</option>
 								<option value="venduta">Venduta</option>
 								<option value="promo">In Promozione</option>
+								<option value="in arrivo">In Arrivo</option>
 							</select>
 						</div>
 					</div>
@@ -2804,7 +2805,9 @@
 							? "✅ Disponibile"
 							: car.status === "venduta"
 								? "❌ Venduta"
-								: "🔥 Promozione",
+								: car.status === "in arrivo"
+								? "✈️ In arrivo"
+								: "🔥 Promozione"
 					),
 				]
 					.filter(Boolean)

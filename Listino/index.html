@@ -1753,6 +1753,9 @@
 					car.status === "venduta"
 						? `<span style="background:#fce8e6;color:#c5221f;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:700">❌ Venduta</span>`
 						: "",
+					car.status === "In arrivo"
+						? `<span class="card-pill pill-orange">✈️ In arrivo</span>`
+						: "",
 					`<span class="card-pill pill-green">🛡️ Garanzia 12 mesi</span>`,
 					`<span class="card-pill pill-blue">💳 Finanziabile</span>`,
 				]
