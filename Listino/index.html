@@ -357,18 +357,29 @@
 				padding: 2px 7px;
 			}
 			.foto-demo-banner {
+				/* LA MAGIA DELL'OVERLAY */
+				position: absolute; 
+				top: 16px;          /* Distanza dal tetto della foto */
+				left: 16px;         /* Distanza da sinistra */
+				right: 60px;        /* Lascia spazio per il tasto ✕ della galleria */
+				z-index: 10;        /* Lo tiene saldamente sopra la macchina */
+				margin: 0;          /* Rimuove i margini che rubavano spazio */
+				
+				/* ESTETICA */
 				display: flex;
-				align-items: center;
+				align-items: flex-start;
 				gap: 10px;
-				background: #fff8e1;
+				background: #f0c140c0; /* Leggermente trasparente */
+				backdrop-filter: blur(4px); /* Effetto vetro elegante */
 				border: 1px solid #f0c040;
 				border-radius: 8px;
 				padding: 10px 14px;
 				font-size: 12px;
 				color: #7a5c00;
 				line-height: 1.5;
-				margin-bottom: 12px;
+				box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); /* Ombra per staccarlo dalla foto scura */
 			}
+			
 			.foto-demo-icon {
 				font-size: 16px;
 				flex-shrink: 0;
@@ -594,6 +605,7 @@
 				background: #111;
 				height: 100%;
 				min-height: 0;
+				position: relative;
 			}
 			.modal-gallery {
 				flex: 1;
