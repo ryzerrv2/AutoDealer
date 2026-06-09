@@ -557,7 +557,7 @@
 			#modal {
 				background: var(--surface);
 				border-radius: 14px;
-				width: 100%;
+				width: 70%;
 				max-width: 1100px;
 				height: 90vh; /* Fissa l'altezza al 90% dello schermo dell'utente */
 				margin: auto;
@@ -1130,9 +1130,17 @@
 					grid-template-columns: 1fr;
 				}
 				#modal {
-					height: 95vh;
-					display: block; /* Spegne Flexbox per far scorrere tutto naturalmente */
-					overflow-y: auto; /* Riattiva lo scroll globale per il touch */
+					background: var(--surface);
+					border-radius: 14px;
+					width: 100%;
+					max-width: 1100px;
+					height: 90vh; /* Fissa l'altezza al 90% dello schermo dell'utente */
+					margin: auto;
+					display: flex;
+					flex-direction: column;
+					overflow: hidden; /* Blocca lo scroll globale: scrolleranno solo i contenuti interni */
+					box-shadow: var(--shadow-lg);
+					animation: modalIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 				}
 				.modal-top {
 					display: flex;
@@ -1146,6 +1154,13 @@
 					border-left: none;
 					border-top: 1px solid var(--border);
 					overflow-y: visible; /* Disattiva lo scroll interno */
+				}
+				.side-price-box {
+					background: var(--surface);
+					border-radius: 10px;
+					border: 1px solid var(--border);
+					padding: 18px;
+					margin-bottom: 14px;
 				}
 				.modal-main {
 					padding: 24px 20px;
