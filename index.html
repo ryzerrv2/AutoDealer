@@ -43,6 +43,9 @@
 				min-height: 100vh;
 				overflow-x: hidden;
 			}
+
+			
+
 			body::before {
 				content: "";
 				position: fixed;
@@ -494,6 +497,33 @@
 				transform: translateY(-5px);
 				border-color: rgba(232, 160, 32, 0.4);
 				box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+			}
+			.foto-demo-banner {
+				display: flex;
+				align-items: flex-start;
+				gap: 10px;
+				background: #fff8e1;
+				border: 1px solid #f0c040;
+				border-radius: 8px;
+				padding: 10px 14px;
+				font-size: 12px;
+				color: #7a5c00;
+				line-height: 1.5;
+				margin-bottom: 12px;
+			}
+			.foto-demo-icon {
+				font-size: 16px;
+				flex-shrink: 0;
+				margin-top: 1px;
+			}
+			.foto-demo-close {
+				margin-left: auto;
+				background: none;
+				border: none;
+				color: #7a5c00;
+				cursor: pointer;
+				font-size: 14px;
+				flex-shrink: 0;
 			}
 			.car-img-wrap {
 				width: 100%;
@@ -1859,7 +1889,7 @@
 							><input
 								class="form-input"
 								id="f-price"
-								type="number"
+								type="text"
 								placeholder="18500"
 							/>
 						</div>
@@ -1925,6 +1955,25 @@
 								placeholder="🚗"
 								maxlength="4"
 							/>
+						</div>
+						<div class="form-group">
+
+							<!-- <div class="form-group form-checkbox-group">
+								<input
+									type="checkbox"
+									id="f-foto-demo"
+									class="form-checkbox"
+								/>
+								<label for="f-neopatentati" class="form-label form-checkbox-label"
+									>Per neopatentati</label
+								>
+							</div> -->
+							<div class="form-checkbox-group">
+								<input type="checkbox" id="f-foto-demo" class="form-checkbox" />
+								<label for="f-foto-demo" class="form-checkbox-label"
+									>⚠️ Mostra avviso "foto esclusivamente dimostrative"</label
+								>
+							</div>
 						</div>
 						<div class="form-group">
 							<label class="form-label">Stato</label>
@@ -2408,6 +2457,7 @@
 					posti: c.posti || null,
 					porte: c.porte || null,
 					per_neopatentati: c.per_neopatentati || false,
+					foto_dimostrative: c.foto_dimostrative || false,
 					// Cronologia
 					mese_immatricolazione: c.mese_immatricolazione || null,
 					anno_produzione: c.anno_produzione || null,
@@ -2454,6 +2504,7 @@
 					posti: r.posti,
 					porte: r.porte,
 					per_neopatentati: r.per_neopatentati,
+					foto_dimostrative: r.foto_dimostrative,
 					mese_immatricolazione: r.mese_immatricolazione,
 					anno_produzione: r.anno_produzione,
 					revisione: r.revisione,
@@ -2688,9 +2739,20 @@
 				document.getElementById("detail-desc").textContent = car.desc || "";
 				const imgs = car.images?.length ? car.images : [];
 				const gal = document.getElementById("detail-gallery");
+				const shownBanner = document.querySelector(".detail-gallery ~ .foto-demo-banner");
+				if (car.foto_dimostrative && (shownBanner == null) ) {
+					const banner = document.createElement("div");
+					banner.className = "foto-demo-banner";
+					banner.innerHTML = `
+						<span class="foto-demo-icon">📸</span>
+						<span>Le foto sono esclusivamente dimostrative. Il veicolo è in arrivo e potrebbe differire da quanto mostrato, foto aggiornate nei prossimi giorni.</span>
+						<button class="foto-demo-close" onclick="this.parentElement.remove()">✕</button>`;
+					console.log(gal);
+					gal.after(banner); // autodealer
+				}
 				const thumbs = document.getElementById("detail-thumbs");
 				if (imgs.length) {
-					gal.innerHTML = `<img id="detail-main-img" src="${esc(imgs[0])}" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${esc(car.emoji || "🚗")}</div>'">`;
+					gal.innerHTML = `<img id="detail-main-img" src="${esc(imgs[0])}" loading="lazy" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${esc(car.emoji || "🚗")}</div>'">`;
 					if (imgs.length > 1) {
 						thumbs.innerHTML = imgs
 							.map(
@@ -2938,6 +3000,8 @@
 				f("f-porte", car?.porte);
 				document.getElementById("f-neopatentati").checked =
 					car?.per_neopatentati || false;
+				document.getElementById("f-foto-demo").checked =
+					car?.foto_dimostrative || false;
 				// Cronologia
 				f("f-mese-imm", car?.mese_immatricolazione);
 				f("f-anno-prod", car?.anno_produzione);
@@ -3010,6 +3074,7 @@
 				const brand = document.getElementById("f-brand").value.trim();
 				const model = document.getElementById("f-model").value.trim();
 				const price = parseFloat(document.getElementById("f-price").value);
+				console.log(price)
 				if (!brand || !model || isNaN(price)) {
 					showToast("Compila almeno: Marca, Modello e Prezzo", "error");
 					return;
@@ -3044,6 +3109,8 @@
 					porte: parseInt(gv("f-porte")) || null,
 					per_neopatentati:
 						document.getElementById("f-neopatentati")?.checked || false,
+					foto_dimostrative:
+						document.getElementById("f-foto-demo")?.checked || false,
 					// Cronologia
 					mese_immatricolazione: gv("f-mese-imm"),
 					anno_produzione: gv("f-anno-prod"),
@@ -3234,5 +3301,5 @@
 				}, 60);
 			}
 		</script>
-		</body>
+	</body>
 </html>

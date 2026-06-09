@@ -356,6 +356,33 @@
 				font-weight: 600;
 				padding: 2px 7px;
 			}
+			.foto-demo-banner {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				background: #fff8e1;
+				border: 1px solid #f0c040;
+				border-radius: 8px;
+				padding: 10px 14px;
+				font-size: 12px;
+				color: #7a5c00;
+				line-height: 1.5;
+				margin-bottom: 12px;
+			}
+			.foto-demo-icon {
+				font-size: 16px;
+				flex-shrink: 0;
+				margin-top: 1px;
+			}
+			.foto-demo-close {
+				margin-left: auto;
+				background: none;
+				border: none;
+				color: #7a5c00;
+				cursor: pointer;
+				font-size: 14px;
+				flex-shrink: 0;
+			}
 			.card-badges {
 				position: absolute;
 				top: 8px;
@@ -1264,7 +1291,6 @@
 				</div>
 			</div>
 		</div>
-		
 
 		<!-- CARDS -->
 		<main id="main">
@@ -1389,6 +1415,7 @@
 					posti: r.posti,
 					porte: r.porte,
 					per_neopatentati: r.per_neopatentati,
+					foto_dimostrative: r.foto_dimostrative,
 					mese_immatricolazione: r.mese_immatricolazione,
 					anno_produzione: r.anno_produzione,
 					revisione: r.revisione,
@@ -1440,6 +1467,11 @@
 					title: "Storico documentato",
 					sub: "Tagliandi verificati e cronologia completa",
 					icon: "📋",
+				},
+				{
+					icon: "🚛",
+					title: "3 Chiamate Carro Attrezzi",
+					sub: "Incluse gratuitamente nel primo anno — intervento garantito",
 				},
 			];
 
@@ -1679,6 +1711,16 @@
 
 				// ── Gallery ──
 				const gal = document.getElementById("m-gallery");
+				const shownBanner = document.querySelector("#m-gallery ~ .foto-demo-banner");
+				if (car.foto_dimostrative && (shownBanner == null) ) {
+					const banner = document.createElement("div");
+					banner.className = "foto-demo-banner";
+					banner.innerHTML = `
+						<span class="foto-demo-icon">📸</span>
+						<span>Le foto sono esclusivamente dimostrative. Il veicolo è in arrivo e potrebbe differire da quanto mostrato, foto aggiornate nei prossimi giorni.</span>
+						<button class="foto-demo-close" onclick="this.parentElement.remove()">✕</button>`;
+					gal.after(banner); // listino-scout
+				}
 				const thb = document.getElementById("m-thumbs");
 				if (imgs.length) {
 					gal.innerHTML = `
