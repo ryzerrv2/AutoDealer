@@ -44,8 +44,6 @@
 				overflow-x: hidden;
 			}
 
-			
-
 			body::before {
 				content: "";
 				position: fixed;
@@ -1727,8 +1725,8 @@
 					Apri WhatsApp
 				</button>
 				<p class="contact-info" id="footer-contact">
-					📍 Piano Pantano 104, Mirabella Eclano (AV) &nbsp;·&nbsp; 📞 +39 329
-					948 6200
+					📍 Piano Pantano 104, Mirabella Eclano (AV) &nbsp;·&nbsp; 📞 +39 393
+					299 4862
 				</p>
 			</div>
 		</section>
@@ -1961,7 +1959,6 @@
 							/>
 						</div>
 						<div class="form-group">
-
 							<!-- <div class="form-group form-checkbox-group">
 								<input
 									type="checkbox"
@@ -2534,11 +2531,10 @@
 			const state = {
 				cars: [],
 				settings: {
-					waNumber: "393299486200",
+					waNumber: "3932994862",
 					name: "G&GCarSolution",
 					address: "Piano Pantano 104, Mirabella Eclano (AV)",
 				},
-				adminPassword: "admin2025",
 				currentUser: null,
 				activeFilter: "all",
 				editingId: null,
@@ -2563,7 +2559,6 @@
 					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
 					if (settings.name) state.settings.name = settings.name;
 					if (settings.address) state.settings.address = settings.address;
-					if (settings.adminPass) state.adminPassword = settings.adminPass;
 					setSyncStatus("", "Supabase ✓");
 				} catch (e) {
 					setSyncStatus("error", "Errore DB");
@@ -2746,8 +2741,10 @@
 				document.getElementById("detail-desc").textContent = car.desc || "";
 				const imgs = car.images?.length ? car.images : [];
 				const gal = document.getElementById("detail-gallery");
-				const shownBanner = document.querySelector(".detail-gallery ~ .foto-demo-banner");
-				if (car.foto_dimostrative && (shownBanner == null) ) {
+				const shownBanner = document.querySelector(
+					".detail-gallery ~ .foto-demo-banner",
+				);
+				if (car.foto_dimostrative && shownBanner == null) {
 					const banner = document.createElement("div");
 					banner.className = "foto-demo-banner";
 					banner.innerHTML = `
@@ -2811,8 +2808,8 @@
 							: car.status === "venduta"
 								? "❌ Venduta"
 								: car.status === "in arrivo"
-								? "✈️ In arrivo"
-								: "🔥 Promozione"
+									? "✈️ In arrivo"
+									: "🔥 Promozione",
 					),
 				]
 					.filter(Boolean)
@@ -2865,22 +2862,67 @@
 			function openLogin() {
 				openModal("auth-modal");
 			}
-			function doLogin() {
+			async function hashPassword(pwd) {
+				const enc = new TextEncoder();
+				const buf = await crypto.subtle.digest("SHA-256", enc.encode(pwd));
+				return Array.from(new Uint8Array(buf))
+					.map((b) => b.toString(16).padStart(2, "0"))
+					.join("");
+			}
+
+			async function doLogin() {
 				const err = document.getElementById("auth-error");
-				if (
-					document.getElementById("auth-pass").value === state.adminPassword
-				) {
-					state.currentUser = "admin";
-					err.style.display = "none";
-					closeModal("auth-modal");
-					document.getElementById("login-btn").hidden = true;
-					document.getElementById("logout-btn").hidden = false;
-					document.getElementById("admin-indicator").classList.add("visible");
-					document.getElementById("admin-fab").classList.add("visible");
-					showToast("Accesso effettuato", "success");
-				} else {
+				const btn = document.querySelector("#auth-modal .btn-accent");
+				const pass = document.getElementById("auth-pass").value;
+				if (!pass) {
+					err.style.display = "block";
+					err.textContent = "Inserisci la password.";
+					return;
+				}
+
+				btn.disabled = true;
+				btn.textContent = "Verifica...";
+				err.style.display = "none";
+
+				try {
+					const inputHash = await hashPassword(pass);
+					// Leggi hash salvato su Supabase
+					const rows = await sbFetch(
+						"settings?key=eq.adminPassHash&select=value",
+					);
+					const storedHash = rows?.[0]?.value
+						? JSON.parse(rows[0].value)
+						: null;
+
+					if (!storedHash) {
+						// Nessun hash nel DB — primo accesso, accetta e salva
+						await dbUpsertSetting("adminPassHash", inputHash);
+						grantAdmin();
+					} else if (inputHash === storedHash) {
+						grantAdmin();
+					} else {
+						err.textContent = "Password non valida.";
+						err.style.display = "block";
+					}
+				} catch (e) {
+					err.textContent = "Errore di connessione: " + e.message;
 					err.style.display = "block";
 				}
+
+				btn.disabled = false;
+				btn.textContent = "Accedi";
+			}
+
+			function grantAdmin() {
+				state.currentUser = "admin";
+				document.getElementById("auth-error").style.display = "none";
+				closeModal("auth-modal");
+				sessionStorage.setItem("ae_admin", "1");
+				document.getElementById("login-btn").hidden = true;
+				document.getElementById("logout-btn").hidden = false;
+				document.getElementById("admin-indicator").classList.add("visible");
+				document.getElementById("admin-fab").classList.add("visible");
+				showToast("Accesso effettuato", "success");
 			}
 			function logout() {
 				state.currentUser = null;
@@ -3230,9 +3272,15 @@
 					showToast("Le password non coincidono", "error");
 					return;
 				}
-				state.adminPassword = np;
+
 				try {
-					await dbUpsertSetting("adminPass", np);
+					const newHash = await hashPassword(np);
+					await dbUpsertSetting("adminPassHash", newHash);
+					// Rimuovi la password in chiaro dal DB se esiste ancora
+					await sbFetch("settings?key=eq.adminPass", {
+						method: "DELETE",
+						headers: { Prefer: "" },
+					});
 					document.getElementById("s-newpass").value = "";
 					document.getElementById("s-confpass").value = "";
 					showToast("Password aggiornata", "success");
