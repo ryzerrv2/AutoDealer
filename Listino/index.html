@@ -1176,7 +1176,7 @@
 				}
 				.modal-main {
 					padding: 24px 20px;
-					overflow-y: visible; /* Disattiva lo scroll interno */
+					overflow-y: scroll; /* Disattiva lo scroll interno */
 				}
 				.modal-highlights {
 					grid-template-columns: repeat(2, 1fr);
@@ -1754,7 +1754,7 @@
 										<div class="card-price">${fmtP(car.price)}</div>
 										<div class="card-price-vat">IVA inclusa</div>
 									</div>
-									<div class="card-financing">o in comode rate →</div>
+									${/*<div class="card-financing">o in comode rate →</div>*/""}
 								</div>
 								<div class="card-pills">${pills}</div>
 							</div>
