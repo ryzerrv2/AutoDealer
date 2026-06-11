@@ -1165,7 +1165,8 @@
 				.modal-top {
 					display: flex;
 					flex-direction: column;
-					flex: none; /* Rimuove il 35% fisso su mobile */
+					flex: none;
+					height: 60%;
 				}
 				.modal-gallery-wrap {
 					height: 35vh; /* Su cellulare l'immagine occuperà il 35% dell'altezza dello schermo */
@@ -1181,6 +1182,11 @@
 					border: 1px solid var(--border);
 					padding: 18px;
 					margin-bottom: 14px;
+				}
+
+				.side-cta-stack {
+					display: grid;
+					grid-template-columns: 1fr 1fr;
 				}
 				.modal-main {
 					padding: 24px 20px;
