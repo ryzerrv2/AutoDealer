@@ -358,13 +358,13 @@
 			}
 			.foto-demo-banner {
 				/* LA MAGIA DELL'OVERLAY */
-				position: absolute; 
-				top: 16px;          /* Distanza dal tetto della foto */
-				left: 16px;         /* Distanza da sinistra */
-				right: 60px;        /* Lascia spazio per il tasto ✕ della galleria */
-				z-index: 10;        /* Lo tiene saldamente sopra la macchina */
-				margin: 0;          /* Rimuove i margini che rubavano spazio */
-				
+				position: absolute;
+				top: 16px; /* Distanza dal tetto della foto */
+				left: 16px; /* Distanza da sinistra */
+				right: 60px; /* Lascia spazio per il tasto ✕ della galleria */
+				z-index: 10; /* Lo tiene saldamente sopra la macchina */
+				margin: 0; /* Rimuove i margini che rubavano spazio */
+
 				/* ESTETICA */
 				display: flex;
 				align-items: flex-start;
@@ -379,7 +379,7 @@
 				line-height: 1.5;
 				box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); /* Ombra per staccarlo dalla foto scura */
 			}
-			
+
 			.foto-demo-icon {
 				font-size: 16px;
 				flex-shrink: 0;
@@ -590,13 +590,15 @@
 			}
 
 			/* Modal hero gallery */
-			/* Struttura superiore (Griglia a 2 colonne) */
+			
 			.modal-top {
 				display: grid;
-				grid-template-columns: 1fr 340px;
+				width: 100%;
+				grid-template-columns: 2fr 1fr;
 				border-bottom: 1px solid var(--border);
-				flex: 0 0 40%; /* <-- PERCENTUALE: Il top occupa il 35% della modale */
-				min-height: 0; /* Regola fondamentale per far funzionare Flexbox */
+				flex: 0 0 40%;
+				min-height: 0;
+				justify-content: end;
 			}
 
 			.modal-gallery-wrap {
@@ -605,6 +607,7 @@
 				background: #111;
 				height: 100%;
 				min-height: 0;
+				min-width: 0;
 				position: relative;
 			}
 			.modal-gallery {
@@ -631,9 +634,8 @@
 				flex: 1; /* <-- IL RESTO: Si prende automaticamente il restante 65% */
 				overflow-y: auto; /* Scorrimento indipendente per il testo principale */
 			}
-			
+
 			/* Contenuti */
-			
 
 			.modal-gallery img {
 				width: 100%;
@@ -678,6 +680,12 @@
 				padding: 10px 16px;
 				background: #111;
 				overflow-x: auto;
+
+				scrollbar-width: none; 
+				-ms-overflow-style: none;
+			}
+			.modal-thumbs-strip::-webkit-scrollbar {
+				display: none;
 			}
 			.modal-thumb {
 				width: 72px;
@@ -701,7 +709,7 @@
 			}
 
 			/* Modal body */
-			
+
 			.modal-main {
 				padding: 24px;
 				border-right: 1px solid var(--border);
@@ -1405,13 +1413,15 @@
 				<div class="modal-top">
 					<div class="modal-gallery-wrap">
 						<div class="modal-gallery" id="m-gallery">
-							<button class="modal-gallery-close" onclick="closeModal()">✕</button>
+							<button class="modal-gallery-close" onclick="closeModal()">
+								✕
+							</button>
 						</div>
 						<div class="modal-thumbs-strip" id="m-thumbs" hidden></div>
 					</div>
 					<div class="modal-side" id="m-side"></div>
 				</div>
-				
+
 				<div class="modal-main" id="m-main"></div>
 			</div>
 		</div>
@@ -1736,9 +1746,13 @@
 							<div class="card-photo">
 								${img}
 								${badges ? `<div class="card-badges">${badges}</div>` : ""}
-								${car.images?.length > 1 && !(car.status === "in arrivo") ? `<div class="card-photo-count">📷 ${car.images.length}
-								${car.status === "in arrivo" ? `<div class = "">`: ""}
-							</div>` : ""}
+								${
+									car.images?.length > 1 && !(car.status === "in arrivo")
+										? `<div class="card-photo-count">📷 ${car.images.length}
+								${car.status === "in arrivo" ? `<div class = "">` : ""}
+							</div>`
+										: ""
+								}
 							</div>
 							<div class="card-body">
 								<div class="card-make">${esc(car.brand)}</div>
@@ -1754,7 +1768,7 @@
 										<div class="card-price">${fmtP(car.price)}</div>
 										<div class="card-price-vat">IVA inclusa</div>
 									</div>
-									${/*<div class="card-financing">o in comode rate →</div>*/""}
+									${/*<div class="card-financing">o in comode rate →</div>*/ ""}
 								</div>
 								<div class="card-pills">${pills}</div>
 							</div>
@@ -1788,15 +1802,16 @@
 
 				// ── Gallery ──
 				const gal = document.getElementById("m-gallery");
-				const shownBanner = document.querySelector("#m-gallery ~ .foto-demo-banner");
-				if (car.foto_dimostrative && (shownBanner == null) ) {
+				const oldBanner = document.querySelector(".foto-demo-banner");
+				if (oldBanner) oldBanner.remove();
+				if (car.foto_dimostrative) {
 					const banner = document.createElement("div");
 					banner.className = "foto-demo-banner";
 					banner.innerHTML = `
 						<span class="foto-demo-icon">📸</span>
-						<span>Le foto sono esclusivamente dimostrative. Il veicolo è in arrivo e potrebbe differire da quanto mostrato, foto aggiornate nei prossimi giorni.</span>
+						<span>Le foto sono esclusivamente dimostrative. Il veicolo reale potrebbe differire da quanto mostrato — le immagini hanno scopo puramente illustrativo.</span>
 						<button class="foto-demo-close" onclick="this.parentElement.remove()">✕</button>`;
-					gal.after(banner); // listino-scout
+					gal.after(banner);
 				}
 				const thb = document.getElementById("m-thumbs");
 				if (imgs.length) {
@@ -1978,11 +1993,13 @@
     <div class="modal-make">${esc(car.brand)}</div>
     <div class="modal-title">${esc(car.model)}</div>
     <div class="modal-sub">${car.year || ""} · ${fmtKm(car.km)} · ${car.fuel || ""} · ${car.transmission || ""}</div>
-		${/*
+		${
+			/*
     <div class="modal-section">
       <div class="modal-section-title">✅ Servizi del Concessionario</div>
       <div class="dealer-notes">${notesHtml}</div>
-    </div>*/""}
+    </div>*/ ""
+		}
     ${highlights}
     ${descSection}
     ${sectionHtml("📋 Dati di Base", specsBase)}
@@ -1995,15 +2012,17 @@
   `;
 
 				// ── Fill side panel (side-financing) ──
-				
+
 				document.getElementById("m-side").innerHTML = `
 				<div class="side-price-box">
 					<div class="side-price">${fmtP(car.price)}</div>
 					<div class="side-vat">IVA inclusa · Prezzo al pubblico</div>
-					${/*<div class="side-financing">
+					${
+						/*<div class="side-financing">
         		<div class="side-fin-title">💳 Finanziamento disponibile</div>
         		<div class="side-fin-text">Scopri la rata mensile — risposta in 24 ore, senza impegno</div>
-      		</div>*/""}
+      		</div>*/ ""
+					}
 				</div>
     		<div class="side-cta-stack">
 					<button class="btn-wa-cta" onclick="openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}) al prezzo di ${fmtP(car.price)}. Potete darmi maggiori informazioni?')">
@@ -2012,13 +2031,15 @@
 					</button>
 					<button class="btn-secondary" onclick="closeModal()">← Torna alla lista</button>
 				</div>
-				${/*<div class="side-trust">
+				${
+					/*<div class="side-trust">
 					<div class="side-trust-title">Perché sceglierci</div>
 					<div class="trust-item"><span class="trust-icon">🛡️</span> Garanzia 12 mesi inclusa</div>
 					<div class="trust-item"><span class="trust-icon">🔧</span> Revisione tecnica certificata</div>
 					<div class="trust-item"><span class="trust-icon">📋</span> Storico tagliandi verificato</div>
 					<div class="trust-item"><span class="trust-icon">💳</span> Finanziamento rapido</div>
-				</div>*/""}
+				</div>*/ ""
+				}
 			`;
 
 				document.getElementById("modal-overlay").classList.add("open");

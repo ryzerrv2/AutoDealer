@@ -973,6 +973,143 @@
 				color: var(--text-muted);
 			}
 
+			/* ── DEALER SERVICES ─────────────────────────── */
+			.dealer-services {
+				background: linear-gradient(
+					135deg,
+					rgba(26, 42, 94, 0.25) 0%,
+					rgba(232, 160, 32, 0.08) 100%
+				);
+				border: 1px solid rgba(232, 160, 32, 0.3);
+				border-radius: 12px;
+				padding: 16px 18px;
+				margin-bottom: 16px;
+			}
+			.dealer-services-title {
+				font-size: 12px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.8px;
+				color: var(--accent);
+				margin-bottom: 12px;
+			}
+			.dealer-services-grid {
+				display: grid;
+				margin-bottom: 10px;
+				grid-template-columns: 1fr 1fr;
+				gap: 10px;
+			}
+			.ds-item {
+				display: flex;
+				align-items: flex-start;
+				gap: 10px;
+				background: rgba(255, 255, 255, 0.04);
+				border: 1px solid rgba(255, 255, 255, 0.06);
+				border-radius: 8px;
+				padding: 10px 12px;
+			}
+			.ds-icon {
+				font-size: 20px;
+				flex-shrink: 0;
+				margin-top: 1px;
+			}
+			.ds-name {
+				font-size: 13px;
+				font-weight: 700;
+				color: var(--text);
+			}
+			.ds-sub {
+				font-size: 11px;
+				color: var(--text-muted);
+				margin-top: 2px;
+				line-height: 1.4;
+			}
+
+			/* ── TAG / OPTIONAL MIGLIORATI ───────────────── */
+			.tag {
+				display: inline-flex;
+				align-items: center;
+				background: rgba(26, 42, 94, 0.3);
+				border: 1px solid rgba(232, 160, 32, 0.2);
+				border-radius: 5px;
+				padding: 4px 10px;
+				font-size: 12px;
+				font-weight: 500;
+				color: var(--text);
+				margin: 2px;
+				text-transform: capitalize;
+			}
+			.tag::before {
+				content: "✓";
+				color: var(--accent);
+				font-weight: 700;
+				margin-right: 5px;
+				font-size: 11px;
+			}
+			.eq-title {
+				font-size: 12px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.6px;
+				color: var(--accent);
+				margin-bottom: 7px;
+				padding-bottom: 5px;
+				border-bottom: 1px solid rgba(232, 160, 32, 0.2);
+			}
+			.eq-section {
+				margin-bottom: 14px;
+			}
+			.eq-tags {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 4px;
+			}
+
+			/* ── DETAIL DESC MIGLIORATA ──────────────────── */
+			.detail-desc {
+				background: rgba(255, 255, 255, 0.03);
+				border-left: 3px solid var(--accent);
+				border-radius: 0 8px 8px 0;
+				padding: 12px 14px;
+				color: var(--text);
+				font-size: var(--font-desc);
+				line-height: 1.75;
+				margin-bottom: 16px;
+			}
+
+			/* ── FOTO DEMO BANNER ────────────────────────── */
+			.foto-demo-banner {
+				display: flex;
+				align-items: flex-start;
+				gap: 10px;
+				background: rgba(232, 160, 32, 0.1);
+				border: 1px solid rgba(232, 160, 32, 0.35);
+				border-radius: 8px;
+				padding: 10px 14px;
+				font-size: 12px;
+				color: var(--text);
+				line-height: 1.5;
+				margin-bottom: 12px;
+			}
+			.foto-demo-icon {
+				font-size: 16px;
+				flex-shrink: 0;
+				margin-top: 1px;
+			}
+			.foto-demo-close {
+				margin-left: auto;
+				background: none;
+				border: none;
+				color: var(--text-muted);
+				cursor: pointer;
+				font-size: 14px;
+				flex-shrink: 0;
+				transition: color 0.15s;
+			}
+			.foto-demo-close:hover {
+				color: var(--danger);
+			}
+
 			/* ── FORM ────────────────────────────────────────── */
 			.form-group {
 				margin-bottom: 14px;
@@ -1694,6 +1831,11 @@
 							Soluzioni personalizzate di pagamento
 						</div>
 					</div>
+					<div class="feature-card">
+						<div class="feature-icon">🚛</div>
+						<div class="feature-title">3 Carri Attrezzi</div>
+						<div class="feature-desc">Gratuiti nel primo anno di garanzia</div>
+					</div>
 				</div>
 			</div>
 		</section>
@@ -1780,6 +1922,7 @@
 				<div class="modal-body">
 					<div class="detail-gallery" id="detail-gallery"></div>
 					<div class="detail-thumbs" id="detail-thumbs"></div>
+					<div class="dealer-services" id="addServices"></div>
 					<div class="specs-grid" id="detail-specs"></div>
 					<p class="detail-desc" id="detail-desc"></p>
 					<div class="detail-tags" id="detail-tags"></div>
@@ -2542,6 +2685,37 @@
 			};
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			//  STATE
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			const DEALER_NOTES = [
+				{
+					title: "Garanzia 12 mesi",
+					sub: "Su tutti i veicoli, inclusa nella vendita",
+					icon: "🛡️",
+				},
+				{
+					title: "Finanziamento disponibile",
+					sub: "Rate personalizzate, risposta in 24h",
+					icon: "💳",
+				},
+				{
+					title: "Revisione tecnica",
+					sub: "Controllo completo pre-consegna certificato",
+					icon: "🔧",
+				},
+				{
+					title: "Storico documentato",
+					sub: "Tagliandi verificati e cronologia completa",
+					icon: "📋",
+				},
+				{
+					icon: "🚛",
+					title: "3 Chiamate Carro Attrezzi",
+					sub: "Incluse gratuitamente nel primo anno — intervento garantito",
+				},
+			];
+
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  INIT
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			async function startApp() {
@@ -2601,7 +2775,16 @@
 			}
 
 			window.addEventListener("DOMContentLoaded", () => {
-				startApp();
+				startApp().then(() => {
+					// Ripristina sessione admin se era attiva nella stessa sessione browser
+					if (sessionStorage.getItem("ae_admin") === "1") {
+						state.currentUser = "admin";
+						document.getElementById("login-btn").hidden = true;
+						document.getElementById("logout-btn").hidden = false;
+						document.getElementById("admin-indicator").classList.add("visible");
+						document.getElementById("admin-fab").classList.add("visible");
+					}
+				});
 				const ua = document.getElementById("upload-area");
 				ua.addEventListener("dragover", (e) => {
 					e.preventDefault();
@@ -2741,17 +2924,17 @@
 				document.getElementById("detail-desc").textContent = car.desc || "";
 				const imgs = car.images?.length ? car.images : [];
 				const gal = document.getElementById("detail-gallery");
-				const shownBanner = document.querySelector(
-					".detail-gallery ~ .foto-demo-banner",
-				);
-				if (car.foto_dimostrative && shownBanner == null) {
+
+				const oldBanner = document.querySelector(".foto-demo-banner");
+				if (oldBanner) oldBanner.remove();
+				if (car.foto_dimostrative) {
 					const banner = document.createElement("div");
 					banner.className = "foto-demo-banner";
 					banner.innerHTML = `
 						<span class="foto-demo-icon">📸</span>
-						<span>Le foto sono esclusivamente dimostrative. Il veicolo è in arrivo e potrebbe differire da quanto mostrato, foto aggiornate nei prossimi giorni.</span>
+						<span>Le foto sono esclusivamente dimostrative. Il veicolo reale potrebbe differire da quanto mostrato — le immagini hanno scopo puramente illustrativo.</span>
 						<button class="foto-demo-close" onclick="this.parentElement.remove()">✕</button>`;
-					gal.after(banner); // autodealer
+					gal.after(banner);
 				}
 				const thumbs = document.getElementById("detail-thumbs");
 				if (imgs.length) {
@@ -2771,6 +2954,39 @@
 					gal.innerHTML = `<div class="detail-gallery-placeholder">${car.emoji || "🚗"}</div>`;
 					thumbs.style.display = "none";
 				}
+				const services = document.getElementById("addServices");
+				const notesHtml = DEALER_NOTES.map((n, i) => {
+					let html = "";
+
+					// 1. Se l'indice è PARI (0, 2, 4...), APRIAMO il contenitore grid
+					if (i % 2 === 0) {
+						html += `<div class="dealer-services-grid">`;
+					}
+
+					// 2. Inseriamo SEMPRE l'elemento corrente
+					html += `
+						<div class="ds-item"> 
+								<div class="ds-icon">${n.icon}</div>
+								<div class="ds-name">${n.title}</div> 
+								<div class="ds-sub">${n.sub}</div>
+						</div>
+					`;
+
+					// 3. Se l'indice è DISPARI (1, 3, 5...) OPPURE è l'ultimo elemento in assoluto, CHIUDIAMO il contenitore
+					if (i % 2 !== 0 || i === DEALER_NOTES.length - 1) {
+						html += `</div>`;
+					}
+
+					return html;
+				}).join("");
+
+				services.innerHTML = `
+					<div class="dealer-services-title">
+						✅ Servizi del Concessionario
+					</div>
+					${notesHtml}
+				`;
+
 				const specRow = (k, v) =>
 					v
 						? `<div class="spec-item"><div class="spec-key">${k}</div><div class="spec-val">${esc(String(v))}</div></div>`
@@ -2925,6 +3141,7 @@
 				showToast("Accesso effettuato", "success");
 			}
 			function logout() {
+				sessionStorage.setItem("ae_admin", "0");
 				state.currentUser = null;
 				document.getElementById("login-btn").hidden = false;
 				document.getElementById("logout-btn").hidden = true;
@@ -2936,6 +3153,7 @@
 			document.getElementById("auth-pass").addEventListener("keydown", (e) => {
 				if (e.key === "Enter") doLogin();
 			});
+			
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  ADMIN
@@ -3319,6 +3537,9 @@
 			function closeModal(id) {
 				document.getElementById(id).classList.remove("open");
 			}
+			document.addEventListener("keydown", (e) => {
+				if (e.key === "Escape") closeModal('car-detail-modal');
+			});
 			//document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); }));
 
 			function showToast(msg, type = "info") {
