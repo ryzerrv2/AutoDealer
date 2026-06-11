@@ -727,6 +727,18 @@
 				color: var(--text-muted);
 				font-size: 13px;
 			}
+			.footer-legal {
+				width: 100%;
+				padding-top: 10px;
+				margin-top: 10px;
+				border-top: 1px solid var(--border);
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px 20px;
+				font-size: 11px;
+				color: var(--text-muted);
+				opacity: 0.7;
+			}
 
 			/* ── MODALS ──────────────────────────────────────── */
 			.modal-overlay {
@@ -1610,10 +1622,10 @@
 					grid-template-columns: 1fr 1fr;
 				}
 				.dealer-services-grid {
-        	display: grid;
-        	grid-template-columns: 1fr; 
-        	gap: 12px; 
-    		}
+					display: grid;
+					grid-template-columns: 1fr;
+					gap: 12px;
+				}
 			}
 
 			.settings-page-title {
@@ -1881,6 +1893,11 @@
 		<footer>
 			<div class="footer-logo">G&GCar<span>Solution</span></div>
 			<div class="footer-copy">© 2026 G&GCarSolution</div>
+			<div class="footer-legal">
+				<span>G&amp;G Car Solution — RORI DI PALERMO ROSSETTI ROCCO</span>
+				<span>P.IVA: 01957260647 &nbsp;·&nbsp;</span>
+				<span>Via Pianopantano, 83036 Mirabella Eclano (AV)</span>
+			</div>
 		</footer>
 
 		<button id="admin-fab" onclick="openAdmin()" title="Pannello Admin">
@@ -3158,7 +3175,6 @@
 			document.getElementById("auth-pass").addEventListener("keydown", (e) => {
 				if (e.key === "Enter") doLogin();
 			});
-			
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  ADMIN
@@ -3543,7 +3559,7 @@
 				document.getElementById(id).classList.remove("open");
 			}
 			document.addEventListener("keydown", (e) => {
-				if (e.key === "Escape") closeModal('car-detail-modal');
+				if (e.key === "Escape") closeModal("car-detail-modal");
 			});
 			//document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); }));
 

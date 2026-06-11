@@ -590,7 +590,7 @@
 			}
 
 			/* Modal hero gallery */
-			
+
 			.modal-top {
 				display: grid;
 				width: 100%;
@@ -681,7 +681,7 @@
 				background: #111;
 				overflow-x: auto;
 
-				scrollbar-width: none; 
+				scrollbar-width: none;
 				-ms-overflow-style: none;
 			}
 			.modal-thumbs-strip::-webkit-scrollbar {
@@ -1052,7 +1052,7 @@
 			}
 
 			/* ─── FOOTER ──────────────────────────────────────── */
-			#footer {
+			/* #footer {
 				position: fixed;
 				bottom: 0;
 				left: 0;
@@ -1060,18 +1060,44 @@
 				z-index: 40;
 				background: var(--surface);
 				border-top: 1px solid var(--border);
-				padding: 8px 0;
+				padding: 36px 40px;
 				display: flex;
+				flex-wrap: wrap;
 				align-items: center;
-				gap: 20px;
+				gap: 4px 20px;
 				font-size: 11px;
 				color: var(--text-3);
+			} */
+			 
+			footer {
+				background: var(--surface);
+				border-top: 1px solid var(--border);
+				padding: 36px 40px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				flex-wrap: wrap;
+				gap: 4px 20px;
+				color: var(--text-3);
+				font-size: 11px;
+
 			}
 			.footer-stat strong {
 				color: var(--text-2);
 			}
 			.footer-copy {
 				margin-left: auto;
+			}
+			.footer-legal {
+				width: 100%;
+				padding: 6px 24px 0;
+				border-top: 1px solid var(--border);
+				display: flex;
+				flex-wrap: wrap;
+				gap: 4px 20px;
+				font-size: 10px;
+				color: var(--text-3);
+				opacity: 0.65;
 			}
 			.sync-dot {
 				width: 6px;
@@ -1115,6 +1141,7 @@
 			.container-footer {
 				display: flex;
 				align-items: center;
+				justify-content: space-between;
 				gap: 20px;
 				width: 100%;
 			}
@@ -1434,7 +1461,7 @@
 
 		<!-- FOOTER -->
 		<footer id="footer">
-			<div class="container container-footer">
+			<div class="container-footer">
 				<span class="footer-stat"
 					><span class="sync-dot" id="sync-dot"></span
 					><strong id="fb-total">—</strong> veicoli</span
@@ -1443,7 +1470,12 @@
 					><strong id="fb-avail" class="clr-green">—</strong> disponibili</span
 				>
 				<span id="sync-label" class="clr-muted">Caricamento...</span>
-				<span class="footer-copy">© 2025 G&GCarSolution</span>
+				<span class="footer-copy">© 2026 G&GCarSolution</span>
+			</div>
+			<div class="footer-legal">
+				<span>G&amp;G Car Solution — RORI DI PALERMO ROSSETTI ROCCO</span>
+				<span>P.IVA: 01957260647 &nbsp;·&nbsp; C.F.: PLRRCC****F230Y</span>
+				<span>Via Pianopantano, 83036 Mirabella Eclano (AV)</span>
 			</div>
 		</footer>
 
