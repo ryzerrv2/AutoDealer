@@ -3,8 +3,18 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+		/>
+		<meta name="referrer" content="strict-origin-when-cross-origin" />
+		<meta
+			http-equiv="Permissions-Policy"
+			content="camera=(), microphone=(), geolocation=(), payment=()"
+		/>
 		<title>G&GCarSolution — Trova la tua prossima auto</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
 			href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
 			rel="stylesheet"
@@ -1488,14 +1498,67 @@
 			const DEFAULT_ADDR = "Piano Pantano 104, Mirabella Eclano (AV)";
 			const SB_KEY =
 				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2Z4cnJkcGhlcWhwaWJ3b2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDEzMDEsImV4cCI6MjA5NjAxNzMwMX0.BIMyAAde4JS82eaMIq-qzdWckyPSm7KFSdsa6BFz6j8";
+			const ALLOWED_SB_PATHS = [
+				/^cars\?select=\*&order=created_at\.desc$/,
+				/^settings\?select=key,value$/,
+			];
+			const DB_CACHE_PREFIX = "ggcars_db_v2";
+			const CARS_CACHE_KEY = DB_CACHE_PREFIX + ":cars";
+			const SETTINGS_CACHE_KEY = DB_CACHE_PREFIX + ":settings";
+			const CARS_CACHE_TTL_MS = 30 * 60 * 1000;
+			const SETTINGS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+			const DB_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
+			function assertAllowedSbPath(path) {
+				if (!ALLOWED_SB_PATHS.some((rule) => rule.test(path))) {
+					throw new Error("Query DB non consentita");
+				}
+			}
 			async function sbFetch(path) {
+				assertAllowedSbPath(path);
 				const r = await fetch(SB_URL + "/rest/v1/" + path, {
 					headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY },
 				});
 				if (!r.ok) throw new Error("DB " + r.status);
 				return r.json();
 			}
+			function readDbCache(key, maxAgeMs = Infinity) {
+				try {
+					const cached = JSON.parse(localStorage.getItem(key) || "null");
+					if (!cached || (!Array.isArray(cached.data) && typeof cached.data !== "object"))
+						return null;
+					if (Date.now() - Number(cached.savedAt || 0) > maxAgeMs)
+						return null;
+					return cached.data;
+				} catch {
+					return null;
+				}
+			}
+			function writeDbCache(key, data) {
+				try {
+					localStorage.setItem(
+						key,
+						JSON.stringify({ savedAt: Date.now(), data }),
+					);
+				} catch {}
+			}
+			async function cachedDb(key, ttlMs, loader) {
+				const fresh = readDbCache(key, ttlMs);
+				if (fresh) return fresh;
+				try {
+					const data = await loader();
+					writeDbCache(key, data);
+					return data;
+				} catch (e) {
+					const stale = readDbCache(key);
+					if (stale) return stale;
+					throw e;
+				}
+			}
+			const getCachedCars = () =>
+				cachedDb(CARS_CACHE_KEY, CARS_CACHE_TTL_MS, dbGetCars);
+			const getCachedSettings = () =>
+				cachedDb(SETTINGS_CACHE_KEY, SETTINGS_CACHE_TTL_MS, dbGetSettings);
 			async function dbGetCars() {
 				return sbFetch("cars?select=*&order=created_at.desc");
 			}
@@ -1603,8 +1666,8 @@
 				loadBar(35);
 				try {
 					const [cars, settings] = await Promise.all([
-						dbGetCars(),
-						dbGetSettings(),
+						getCachedCars(),
+						getCachedSettings(),
 					]);
 					state.cars = (cars || []).map(rowToCar);
 					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
@@ -1630,11 +1693,12 @@
 				});
 				// Polling
 				let _busy = false;
-				setInterval(async () => {
-					if (_busy) return;
+				const refreshCars = async () => {
+					if (_busy || document.hidden) return;
 					_busy = true;
 					try {
 						const cars = await dbGetCars();
+						writeDbCache(CARS_CACHE_KEY, cars || []);
 						const j = JSON.stringify(cars);
 						if (j !== window._lastJson) {
 							window._lastJson = j;
@@ -1644,7 +1708,13 @@
 						}
 					} catch {}
 					_busy = false;
-				}, 60000);
+				};
+				setInterval(refreshCars, DB_REFRESH_INTERVAL_MS);
+				document.addEventListener("visibilitychange", () => {
+					if (!document.hidden && !readDbCache(CARS_CACHE_KEY, CARS_CACHE_TTL_MS)) {
+						refreshCars();
+					}
+				});
 			}
 			window.addEventListener("DOMContentLoaded", init);
 
@@ -1658,7 +1728,31 @@
 					.replace(/&/g, "&amp;")
 					.replace(/</g, "&lt;")
 					.replace(/>/g, "&gt;")
-					.replace(/"/g, "&quot;");
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#39;");
+			const jsStr = (s) => JSON.stringify(String(s ?? ""));
+			const safeText = (s, fallback = "") => String(s ?? fallback);
+			const safeEmoji = (s) => esc(safeText(s, "🚗").slice(0, 8));
+			function safeImageSrc(src) {
+				const value = String(src || "").trim();
+				if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(value))
+					return value;
+				try {
+					const url = new URL(value, window.location.href);
+					return url.protocol === "https:" ? url.href : "";
+				} catch {
+					return "";
+				}
+			}
+			function safeWhatsAppNumber() {
+				const digits = String(state.settings.waNumber || "")
+					.replace(/\D/g, "")
+					.slice(0, 15);
+				return digits || DEFAULT_WA;
+			}
+			function openExternal(url) {
+				window.open(url, "_blank", "noopener,noreferrer");
+			}
 			function setSync(cls, lbl) {
 				const d = document.getElementById("sync-dot");
 				const l = document.getElementById("sync-label");
@@ -1678,9 +1772,8 @@
 					`— ${avail} auto disponibili`;
 			}
 			function openWhatsApp(msg) {
-				window.open(
-					`https://wa.me/${state.settings.waNumber.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`,
-					"_blank",
+				openExternal(
+					`https://wa.me/${safeWhatsAppNumber()}?text=${encodeURIComponent(msg)}`,
 				);
 			}
 			function resetFilters() {
@@ -1745,10 +1838,11 @@
 
 				grid.innerHTML = list
 					.map((car) => {
+						const imageSrc = safeImageSrc(car.images?.[0]);
 						const img = car.images?.length
-							? `<img src="${esc(car.images[0])}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` +
-								`<div class="card-photo-placeholder" style="display:none">${car.emoji || "🚗"}</div>`
-							: `<div class="card-photo-placeholder">${car.emoji || "🚗"}</div>`;
+							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` +
+								`<div class="card-photo-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
+							: `<div class="card-photo-placeholder">${safeEmoji(car.emoji)}</div>`;
 
 						const badges = [
 							car.status === "promo"
@@ -1798,7 +1892,7 @@
 								<div class="card-specs">
 									<span class="card-spec"><span class="card-spec-icon">📅</span>${car.year || "—"}</span>
 									<span class="card-spec"><span class="card-spec-icon">🛣️</span>${fmtKm(car.km)}</span>
-									<span class="card-spec"><span class="card-spec-icon">⛽</span>${car.fuel || "—"}</span>
+									<span class="card-spec"><span class="card-spec-icon">⛽</span>${esc(car.fuel || "—")}</span>
 									${car.hp ? `<span class="card-spec"><span class="card-spec-icon">⚡</span>${car.hp} CV</span>` : ""}
 								</div>
 								<div class="card-price-row">
@@ -1855,12 +1949,12 @@
 				if (imgs.length) {
 					gal.innerHTML = `
       <button class="modal-gallery-close" onclick="closeModal()">✕</button>
-      <img id="m-main-img" src="${esc(imgs[0])}" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=modal-gallery-placeholder>${esc(car.emoji || "🚗")}</div><button class=modal-gallery-close onclick=closeModal()>✕</button>'">`;
+      <img id="m-main-img" src="${esc(safeImageSrc(imgs[0]))}" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=modal-gallery-placeholder>${safeEmoji(car.emoji)}</div><button class=modal-gallery-close onclick=closeModal()>✕</button>'">`;
 					if (imgs.length > 1) {
 						thb.innerHTML = imgs
 							.map(
 								(s, i) =>
-									`<img class="modal-thumb${i === 0 ? " active" : ""}" src="${esc(s)}" onclick="setModalImg(${i},'${esc(s)}')" onerror="this.style.display='none'">`,
+									`<img class="modal-thumb${i === 0 ? " active" : ""}" src="${esc(safeImageSrc(s))}" onclick="setModalImg(${i}, ${esc(jsStr(safeImageSrc(s)))})" onerror="this.style.display='none'">`,
 							)
 							.join("");
 						thb.style.display = "flex";
@@ -1868,7 +1962,7 @@
 						thb.style.display = "none";
 					}
 				} else {
-					gal.innerHTML = `<button class="modal-gallery-close" onclick="closeModal()">✕</button><div class="modal-gallery-placeholder">${car.emoji || "🚗"}</div>`;
+					gal.innerHTML = `<button class="modal-gallery-close" onclick="closeModal()">✕</button><div class="modal-gallery-placeholder">${safeEmoji(car.emoji)}</div>`;
 					thb.style.display = "none";
 				}
 
@@ -1907,7 +2001,7 @@
       </div>
       <div class="highlight-item">
         <div class="highlight-icon">⛽</div>
-        <div class="highlight-value">${car.fuel || "—"}</div>
+        <div class="highlight-value">${esc(car.fuel || "—")}</div>
         <div class="highlight-label">Carburante</div>
       </div>
       <div class="highlight-item">
@@ -2030,7 +2124,7 @@
 				document.getElementById("m-main").innerHTML = `
     <div class="modal-make">${esc(car.brand)}</div>
     <div class="modal-title">${esc(car.model)}</div>
-    <div class="modal-sub">${car.year || ""} · ${fmtKm(car.km)} · ${car.fuel || ""} · ${car.transmission || ""}</div>
+    <div class="modal-sub">${car.year || ""} · ${fmtKm(car.km)} · ${esc(car.fuel || "")} · ${esc(car.transmission || "")}</div>
 		${
 			/*
     <div class="modal-section">
@@ -2051,6 +2145,7 @@
 
 				// ── Fill side panel (side-financing) ──
 
+				const waMessage = `Salve! Sono interessato al veicolo: ${safeText(car.brand)} ${safeText(car.model)} (${car.year || ""}) al prezzo di ${fmtP(car.price)}. Potete darmi maggiori informazioni?`;
 				document.getElementById("m-side").innerHTML = `
 				<div class="side-price-box">
 					<div class="side-price">${fmtP(car.price)}</div>
@@ -2063,7 +2158,7 @@
 					}
 				</div>
     		<div class="side-cta-stack">
-					<button class="btn-wa-cta" onclick="openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}) al prezzo di ${fmtP(car.price)}. Potete darmi maggiori informazioni?')">
+					<button class="btn-wa-cta" onclick="openWhatsApp(${esc(jsStr(waMessage))})">
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
 						Scrivici su WhatsApp
 					</button>
@@ -2086,7 +2181,7 @@
 
 			function setModalImg(idx, src) {
 				const m = document.getElementById("m-main-img");
-				if (m) m.src = src;
+				if (m) m.src = safeImageSrc(src);
 				document
 					.querySelectorAll(".modal-thumb")
 					.forEach((t, i) => t.classList.toggle("active", i === idx));

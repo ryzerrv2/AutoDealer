@@ -3,8 +3,18 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+		/>
+		<meta name="referrer" content="strict-origin-when-cross-origin" />
+		<meta
+			http-equiv="Permissions-Policy"
+			content="camera=(), microphone=(), geolocation=(), payment=()"
+		/>
 		<title>G&GCarSolution — Concessionaria Auto Usate</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
 			href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display:ital@0;1&display=swap"
 			rel="stylesheet"
@@ -1650,12 +1660,11 @@
 				</li>
 				<li><a href="#" onclick="scrollToSection('about')">Chi Siamo</a></li>
 				<li><a href="#" onclick="scrollToSection('contact')">Contatti</a></li>
-				<li><a href="./Listino/">Listino</a></li>
 			</ul>
 
 			<div class="branding">
 				<div class="nav-logo" onclick="scrollToSection('hero')">
-					<img src="./common/img/logo.png" alt="G&G Car Solution" class="nav-logo-img" />
+					<img src="./common/img/logo.jpeg" alt="G&G Car Solution" class="nav-logo-img" />
 				</div>
 			</div>
 
@@ -2539,6 +2548,25 @@
 			const SB_URL = "https://unkfxrrdpheqhpibwohp.supabase.co";
 			const SB_KEY =
 				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2Z4cnJkcGhlcWhwaWJ3b2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDEzMDEsImV4cCI6MjA5NjAxNzMwMX0.BIMyAAde4JS82eaMIq-qzdWckyPSm7KFSdsa6BFz6j8";
+			const ALLOWED_SB_PATHS = [
+				/^cars$/,
+				/^cars\?select=\*&order=created_at\.desc$/,
+				/^cars\?id=eq\.\d+$/,
+				/^settings$/,
+				/^settings\?select=key,value$/,
+				/^settings\?key=eq\.adminPassHash&select=value$/,
+				/^settings\?key=eq\.adminPass$/,
+			];
+			const LOGIN_THROTTLE_KEY = "ae_admin_login_throttle";
+			const LOGIN_MAX_ATTEMPTS = 5;
+			const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+			const LOGIN_LOCK_MS = 15 * 60 * 1000;
+			const DB_CACHE_PREFIX = "ggcars_db_v2";
+			const CARS_CACHE_KEY = DB_CACHE_PREFIX + ":cars";
+			const SETTINGS_CACHE_KEY = DB_CACHE_PREFIX + ":settings";
+			const CARS_CACHE_TTL_MS = 30 * 60 * 1000;
+			const SETTINGS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+			const DB_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 			function sbHeaders(extra = {}) {
 				return {
@@ -2549,7 +2577,13 @@
 					...extra,
 				};
 			}
+			function assertAllowedSbPath(path) {
+				if (!ALLOWED_SB_PATHS.some((rule) => rule.test(path))) {
+					throw new Error("Query Supabase non consentita.");
+				}
+			}
 			async function sbFetch(path, opts = {}) {
+				assertAllowedSbPath(path);
 				const res = await fetch(SB_URL + "/rest/v1/" + path, {
 					...opts,
 					headers: { ...sbHeaders(), ...(opts.headers || {}) },
@@ -2559,6 +2593,59 @@
 				const txt = await res.text();
 				return txt ? JSON.parse(txt) : null;
 			}
+			function readDbCache(key, maxAgeMs = Infinity) {
+				try {
+					const cached = JSON.parse(localStorage.getItem(key) || "null");
+					if (!cached || !Array.isArray(cached.data) && typeof cached.data !== "object")
+						return null;
+					if (Date.now() - Number(cached.savedAt || 0) > maxAgeMs)
+						return null;
+					return cached.data;
+				} catch {
+					return null;
+				}
+			}
+			function writeDbCache(key, data) {
+				try {
+					localStorage.setItem(
+						key,
+						JSON.stringify({ savedAt: Date.now(), data }),
+					);
+				} catch {}
+			}
+			async function cachedDb(key, ttlMs, loader) {
+				const fresh = readDbCache(key, ttlMs);
+				if (fresh) return fresh;
+				try {
+					const data = await loader();
+					writeDbCache(key, data);
+					return data;
+				} catch (e) {
+					const stale = readDbCache(key);
+					if (stale) return stale;
+					throw e;
+				}
+			}
+			function carsForCache() {
+				return state.cars.map((car) => ({
+					id: car.id,
+					...carToRow(car),
+				}));
+			}
+			function cacheCarsFromState() {
+				writeDbCache(CARS_CACHE_KEY, carsForCache());
+			}
+			function cacheSettingsFromState() {
+				writeDbCache(SETTINGS_CACHE_KEY, {
+					waNumber: state.settings.waNumber,
+					name: state.settings.name,
+					address: state.settings.address,
+				});
+			}
+			const getCachedCars = () =>
+				cachedDb(CARS_CACHE_KEY, CARS_CACHE_TTL_MS, dbGetCars);
+			const getCachedSettings = () =>
+				cachedDb(SETTINGS_CACHE_KEY, SETTINGS_CACHE_TTL_MS, dbGetSettings);
 
 			async function dbGetCars() {
 				return sbFetch("cars?select=*&order=created_at.desc");
@@ -2571,14 +2658,20 @@
 				return Array.isArray(r) ? r[0] : r;
 			}
 			async function dbUpdateCar(id, c) {
-				const r = await sbFetch(`cars?id=eq.${id}`, {
+				const safeId = Number.parseInt(id, 10);
+				if (!Number.isSafeInteger(safeId) || safeId <= 0)
+					throw new Error("ID veicolo non valido.");
+				const r = await sbFetch(`cars?id=eq.${safeId}`, {
 					method: "PATCH",
 					body: JSON.stringify(carToRow(c)),
 				});
 				return Array.isArray(r) ? r[0] : r;
 			}
 			async function dbDeleteCar(id) {
-				await sbFetch(`cars?id=eq.${id}`, {
+				const safeId = Number.parseInt(id, 10);
+				if (!Number.isSafeInteger(safeId) || safeId <= 0)
+					throw new Error("ID veicolo non valido.");
+				await sbFetch(`cars?id=eq.${safeId}`, {
 					method: "DELETE",
 					headers: { Prefer: "" },
 				});
@@ -2750,8 +2843,8 @@
 					document.getElementById("loader-text").textContent =
 						"Caricamento veicoli...";
 					const [cars, settings] = await Promise.all([
-						dbGetCars(),
-						dbGetSettings(),
+						getCachedCars(),
+						getCachedSettings(),
 					]);
 					state.cars = (cars || []).map(rowToCar);
 					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
@@ -2773,11 +2866,12 @@
 				if (!window._pollStarted) {
 					window._pollStarted = true;
 					let _busy = false;
-					setInterval(async () => {
-						if (_busy) return;
+					const refreshCars = async () => {
+						if (_busy || document.hidden) return;
 						_busy = true;
 						try {
 							const cars = await dbGetCars();
+							writeDbCache(CARS_CACHE_KEY, cars || []);
 							const j = JSON.stringify(cars);
 							if (j !== window._lastCarsJson) {
 								window._lastCarsJson = j;
@@ -2794,7 +2888,13 @@
 							}
 						} catch {}
 						_busy = false;
-					}, 60000);
+					};
+					setInterval(refreshCars, DB_REFRESH_INTERVAL_MS);
+					document.addEventListener("visibilitychange", () => {
+						if (!document.hidden && !readDbCache(CARS_CACHE_KEY, CARS_CACHE_TTL_MS)) {
+							refreshCars();
+						}
+					});
 				}
 			}
 
@@ -2833,15 +2933,44 @@
 					.replace(/&/g, "&amp;")
 					.replace(/</g, "&lt;")
 					.replace(/>/g, "&gt;")
-					.replace(/"/g, "&quot;");
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#39;");
+			const jsStr = (s) => JSON.stringify(String(s ?? ""));
+			const safeText = (s, fallback = "") => String(s ?? fallback);
+			const safeEmoji = (s) => esc(safeText(s, "🚗").slice(0, 8));
+			function safeImageSrc(src) {
+				const value = String(src || "").trim();
+				if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(value))
+					return value;
+				try {
+					const url = new URL(value, window.location.href);
+					return url.protocol === "https:" ? url.href : "";
+				} catch {
+					return "";
+				}
+			}
+			function safeWhatsAppNumber() {
+				const digits = String(state.settings.waNumber || "")
+					.replace(/\D/g, "")
+					.slice(0, 15);
+				return digits || "3932994862";
+			}
+			function openExternal(url) {
+				window.open(url, "_blank", "noopener,noreferrer");
+			}
+			function requireAdmin() {
+				if (state.currentUser === "admin") return true;
+				showToast("Sessione admin richiesta.", "error");
+				openLogin();
+				return false;
+			}
 
 			function setSyncStatus(cls, label) {
 				const visible = state.currentUser === "admin";
 				["sync-dot", "admin-sync-dot"].forEach((id) => {
 					const e = document.getElementById(id);
 					if (e) e.className = "sync-dot" + (cls ? " " + cls : "");
-					e.parentElement.style.display = visible ? 'flex' : 'none';
-
+					e.parentElement.style.display = visible ? "flex" : "none";
 				});
 				["sync-label", "admin-sync-label"].forEach((id) => {
 					const e = document.getElementById(id);
@@ -2883,9 +3012,11 @@
 				}
 				grid.innerHTML = list
 					.map((car) => {
+						const imageSrc = safeImageSrc(car.images?.[0]);
 						const img = car.images?.length
-							? `<img src="${esc(car.images[0])}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${car.emoji || "🚗"}</div>`
-							: `<div class="car-img-placeholder">${car.emoji || "🚗"}</div>`;
+							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
+							: `<div class="car-img-placeholder">${safeEmoji(car.emoji)}</div>`;
+						const waMessage = `Salve! Sono interessato al veicolo: ${safeText(car.brand)} ${safeText(car.model)} (${car.year || ""}). Potete darmi informazioni?`;
 						return `
     <div class="car-card" onclick="openCarDetail(${car.id})">
       <div class="car-img-wrap">
@@ -2905,15 +3036,15 @@
         <div class="car-specs">
           <span class="spec">📅 ${car.year || "—"}</span>
           <span class="spec">🛣️ ${fmtKm(car.km)} km</span>
-          <span class="spec">⛽ ${car.fuel || "—"}</span>
+          <span class="spec">⛽ ${esc(car.fuel || "—")}</span>
           ${car.hp ? `<span class="spec">⚡ ${car.hp} CV</span>` : ""}
         </div>
         <div class="car-footer">
           <div>
             <div class="car-price">€ ${fmtPrice(car.price)}</div>
-            <div class="car-transmission">${car.transmission || ""}</div>
+            <div class="car-transmission">${esc(car.transmission || "")}</div>
           </div>
-          <button class="btn btn-wa btn-sm" onclick="event.stopPropagation();openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}). Potete darmi informazioni?')">
+          <button class="btn btn-wa btn-sm" onclick="event.stopPropagation();openWhatsApp(${esc(jsStr(waMessage))})">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
             WA
           </button>
@@ -2965,12 +3096,12 @@
 				}
 				const thumbs = document.getElementById("detail-thumbs");
 				if (imgs.length) {
-					gal.innerHTML = `<img id="detail-main-img" src="${esc(imgs[0])}" loading="lazy" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${esc(car.emoji || "🚗")}</div>'">`;
+					gal.innerHTML = `<img id="detail-main-img" src="${esc(safeImageSrc(imgs[0]))}" loading="lazy" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${safeEmoji(car.emoji)}</div>'">`;
 					if (imgs.length > 1) {
 						thumbs.innerHTML = imgs
 							.map(
 								(s, i) =>
-									`<img class="detail-thumb${i === 0 ? " active" : ""}" src="${esc(s)}" onclick="setDetailImg(${i},'${esc(s)}')" onerror="this.style.display='none'">`,
+									`<img class="detail-thumb${i === 0 ? " active" : ""}" src="${esc(safeImageSrc(s))}" onclick="setDetailImg(${i}, ${esc(jsStr(safeImageSrc(s)))})" onerror="this.style.display='none'">`,
 							)
 							.join("");
 						thumbs.style.display = "flex";
@@ -2978,7 +3109,7 @@
 						thumbs.style.display = "none";
 					}
 				} else {
-					gal.innerHTML = `<div class="detail-gallery-placeholder">${car.emoji || "🚗"}</div>`;
+					gal.innerHTML = `<div class="detail-gallery-placeholder">${safeEmoji(car.emoji)}</div>`;
 					thumbs.style.display = "none";
 				}
 
@@ -3082,7 +3213,7 @@
 			}
 			function setDetailImg(idx, src) {
 				const m = document.getElementById("detail-main-img");
-				if (m) m.src = src;
+				if (m) m.src = safeImageSrc(src);
 				document
 					.querySelectorAll(".detail-thumb")
 					.forEach((t, i) => t.classList.toggle("active", i === idx));
@@ -3092,10 +3223,9 @@
 			//  WHATSAPP
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openWhatsApp(msg) {
-				const num = state.settings.waNumber.replace(/\D/g, "");
-				window.open(
+				const num = safeWhatsAppNumber();
+				openExternal(
 					`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,
-					"_blank",
 				);
 			}
 
@@ -3112,11 +3242,61 @@
 					.map((b) => b.toString(16).padStart(2, "0"))
 					.join("");
 			}
+			function getLoginThrottle() {
+				try {
+					return JSON.parse(
+						localStorage.getItem(LOGIN_THROTTLE_KEY) || "{}",
+					);
+				} catch {
+					return {};
+				}
+			}
+			function setLoginThrottle(value) {
+				localStorage.setItem(LOGIN_THROTTLE_KEY, JSON.stringify(value));
+			}
+			function clearLoginThrottle() {
+				localStorage.removeItem(LOGIN_THROTTLE_KEY);
+			}
+			function getLoginLockRemainingMs() {
+				const throttle = getLoginThrottle();
+				const remaining = Number(throttle.lockUntil || 0) - Date.now();
+				return Math.max(0, remaining);
+			}
+			function recordFailedLogin() {
+				const now = Date.now();
+				const throttle = getLoginThrottle();
+				const windowStart =
+					now - Number(throttle.windowStart || 0) > LOGIN_WINDOW_MS
+						? now
+						: Number(throttle.windowStart || now);
+				const attempts =
+					windowStart === Number(throttle.windowStart || 0)
+						? Number(throttle.attempts || 0) + 1
+						: 1;
+				setLoginThrottle({
+					windowStart,
+					attempts,
+					lockUntil:
+						attempts >= LOGIN_MAX_ATTEMPTS ? now + LOGIN_LOCK_MS : 0,
+				});
+			}
+			function formatLockTime(ms) {
+				return Math.ceil(ms / 60000) + " min";
+			}
 
 			async function doLogin() {
 				const err = document.getElementById("auth-error");
 				const btn = document.querySelector("#auth-modal .btn-accent");
 				const pass = document.getElementById("auth-pass").value;
+				const lockRemaining = getLoginLockRemainingMs();
+				if (lockRemaining > 0) {
+					err.style.display = "block";
+					err.textContent =
+						"Troppi tentativi. Riprova tra " +
+						formatLockTime(lockRemaining) +
+						".";
+					return;
+				}
 				if (!pass) {
 					err.style.display = "block";
 					err.textContent = "Inserisci la password.";
@@ -3140,11 +3320,21 @@
 					if (!storedHash) {
 						// Nessun hash nel DB — primo accesso, accetta e salva
 						await dbUpsertSetting("adminPassHash", inputHash);
+						clearLoginThrottle();
 						grantAdmin();
 					} else if (inputHash === storedHash) {
+						clearLoginThrottle();
 						grantAdmin();
 					} else {
+						recordFailedLogin();
+						const remaining = getLoginLockRemainingMs();
 						err.textContent = "Password non valida.";
+						if (remaining > 0) {
+							err.textContent =
+								"Troppi tentativi. Riprova tra " +
+								formatLockTime(remaining) +
+								".";
+						}
 						err.style.display = "block";
 					}
 				} catch (e) {
@@ -3185,10 +3375,7 @@
 			//  ADMIN
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openAdmin() {
-				if (!state.currentUser) {
-					openLogin();
-					return;
-				}
+				if (!requireAdmin()) return;
 				document.getElementById("admin-panel").classList.add("open");
 				renderAdminCars();
 				loadSettings();
@@ -3230,9 +3417,10 @@
 				}
 				list.innerHTML = state.cars
 					.map((car) => {
+						const imageSrc = safeImageSrc(car.images?.[0]);
 						const thumb = car.images?.length
-							? `<div class="admin-car-thumb"><img src="${esc(car.images[0])}" onerror="this.parentElement.innerHTML='${esc(car.emoji || "🚗")}'"></div>`
-							: `<div class="admin-car-thumb">${car.emoji || "🚗"}</div>`;
+							? `<div class="admin-car-thumb"><img src="${esc(imageSrc)}" onerror="this.parentElement.innerHTML='${safeEmoji(car.emoji)}'"></div>`
+							: `<div class="admin-car-thumb">${safeEmoji(car.emoji)}</div>`;
 						return `
     <div class="admin-car-row">
       ${thumb}
@@ -3240,7 +3428,7 @@
         <div class="admin-car-name">${esc(car.brand)} ${esc(car.model)}</div>
         <div class="admin-car-meta">
           <span class="status-dot status-${car.status !== "venduta" ? "available" : "sold"}"></span>
-          ${car.year || "—"} · ${fmtKm(car.km)} km · ${car.fuel || "—"} · ${car.category || "—"}
+          ${car.year || "—"} · ${fmtKm(car.km)} km · ${esc(car.fuel || "—")} · ${esc(car.category || "—")}
           ${car.images?.length ? " · 📷" + car.images.length : ""}
           ${car.status === "promo" ? '<span class="tag-promo"> · PROMO</span>' : ""}
           ${car.status === "venduta" ? '<span class="tag-sold"> · VENDUTA</span>' : ""}
@@ -3260,6 +3448,7 @@
 			//  CAR FORM
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openCarForm(id) {
+				if (!requireAdmin()) return;
 				state.editingId = id || null;
 				state.pendingImages = [];
 				document.getElementById("form-modal-title").textContent = id
@@ -3320,7 +3509,12 @@
 				openModal("car-form-modal");
 			}
 			function addPendingImage(src) {
-				state.pendingImages.push(src);
+				const safeSrc = safeImageSrc(src);
+				if (!safeSrc) {
+					showToast("Immagine non valida: usa HTTPS o file immagine supportati.", "error");
+					return;
+				}
+				state.pendingImages.push(safeSrc);
 				refreshPreviews();
 			}
 			function removePendingImage(idx) {
@@ -3331,15 +3525,15 @@
 				document.getElementById("img-previews").innerHTML = state.pendingImages
 					.map(
 						(src, i) =>
-							`<div class="img-preview"><img src="${esc(src)}" onerror="this.style.display='none'"><button class="img-remove" onclick="removePendingImage(${i})">✕</button></div>`,
+							`<div class="img-preview"><img src="${esc(safeImageSrc(src))}" onerror="this.style.display='none'"><button class="img-remove" onclick="removePendingImage(${i})">✕</button></div>`,
 					)
 					.join("");
 			}
 			function addImageUrl() {
 				const inp = document.getElementById("f-img-url");
 				const url = inp.value.trim();
-				if (!url.startsWith("http")) {
-					showToast("Inserisci un URL valido (https://...)", "error");
+				if (!safeImageSrc(url)) {
+					showToast("Inserisci un URL immagine valido in HTTPS.", "error");
 					return;
 				}
 				addPendingImage(url);
@@ -3347,6 +3541,10 @@
 			}
 			function handleFileUpload(input) {
 				Array.from(input.files || []).forEach((file) => {
+					if (!/^image\/(png|jpe?g|gif|webp)$/i.test(file.type)) {
+						showToast(`${file.name}: formato immagine non supportato`, "error");
+						return;
+					}
 					if (file.size > 2.5 * 1024 * 1024) {
 						showToast(`${file.name}: troppo grande (max 2MB)`, "error");
 						return;
@@ -3365,6 +3563,7 @@
 							.filter(Boolean)
 					: [];
 			async function saveCar() {
+				if (!requireAdmin()) return;
 				const brand = document.getElementById("f-brand").value.trim();
 				const model = document.getElementById("f-model").value.trim();
 				const price = parseFloat(document.getElementById("f-price").value);
@@ -3437,9 +3636,11 @@
 							state.cars[idx] = rowToCar(
 								up || { ...carToRow(carData), id: state.editingId },
 							);
+						cacheCarsFromState();
 						showToast("Veicolo aggiornato", "success");
 					} else {
 						state.cars.unshift(rowToCar(await dbInsertCar(carData)));
+						cacheCarsFromState();
 						showToast("Veicolo aggiunto", "success");
 					}
 					setSyncStatus("", "Supabase ✓");
@@ -3456,12 +3657,14 @@
 				btn.textContent = "Salva Veicolo";
 			}
 			async function deleteCar(id) {
+				if (!requireAdmin()) return;
 				const car = state.cars.find((c) => c.id === id);
 				if (!car || !confirm(`Eliminare "${car.brand} ${car.model}"?`)) return;
 				setSyncStatus("syncing", "Eliminazione...");
 				try {
 					await dbDeleteCar(id);
 					state.cars = state.cars.filter((c) => c.id !== id);
+					cacheCarsFromState();
 					setSyncStatus("", "Supabase ✓");
 					requestAnimationFrame(() => {
 						renderCars();
@@ -3485,6 +3688,7 @@
 					state.settings.address || "";
 			}
 			async function saveSettings() {
+				if (!requireAdmin()) return;
 				state.settings.waNumber = document
 					.getElementById("s-wa-number")
 					.value.trim();
@@ -3498,6 +3702,7 @@
 						dbUpsertSetting("name", state.settings.name),
 						dbUpsertSetting("address", state.settings.address),
 					]);
+					cacheSettingsFromState();
 					document.getElementById("footer-contact").textContent =
 						`📍 ${state.settings.address} · 📞 ${state.settings.waNumber}`;
 					showToast("Impostazioni salvate", "success");
@@ -3506,6 +3711,7 @@
 				}
 			}
 			async function changePassword() {
+				if (!requireAdmin()) return;
 				const np = document.getElementById("s-newpass").value;
 				const cp = document.getElementById("s-confpass").value;
 				if (!np || np.length < 6) {
@@ -3572,7 +3778,10 @@
 				const c = document.getElementById("toast-container");
 				const t = document.createElement("div");
 				t.className = `toast ${type}`;
-				t.innerHTML = `<span>${{ success: "✅", error: "❌", info: "ℹ️" }[type] || "ℹ️"}</span> ${msg}`;
+				const icon = document.createElement("span");
+				icon.textContent =
+					{ success: "✅", error: "❌", info: "ℹ️" }[type] || "ℹ️";
+				t.append(icon, " " + String(msg));
 				c.appendChild(t);
 				setTimeout(() => {
 					t.style.cssText +=
