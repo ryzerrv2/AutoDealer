@@ -3,12 +3,25 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+		/>
+		<meta name="referrer" content="strict-origin-when-cross-origin" />
+		<meta
+			http-equiv="Permissions-Policy"
+			content="camera=(), microphone=(), geolocation=(), payment=()"
+		/>
 		<title>G&GCarSolution — Concessionaria Auto Usate</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 		<link
 			href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display:ital@0;1&display=swap"
 			rel="stylesheet"
 		/>
+		<!-- Supabase JS v2: gestisce Auth (JWT, refresh token, sessione sicura) -->
+		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 		<style>
 			/* ── TOKENS ─────────────────────────────────────── */
 			:root {
@@ -1650,6 +1663,7 @@
 				</li>
 				<li><a href="#" onclick="scrollToSection('about')">Chi Siamo</a></li>
 				<li><a href="#" onclick="scrollToSection('contact')">Contatti</a></li>
+				<li><a href="./Listino/">Listino</a></li>
 			</ul>
 
 			<div class="branding">
@@ -1911,6 +1925,16 @@
 					</div>
 					<div class="auth-sub">Accedi al portale di gestione</div>
 					<div class="auth-error" id="auth-error">Password non valida.</div>
+					<div class="form-group">
+						<label class="form-label">Email Admin</label>
+						<input
+							class="form-input"
+							id="auth-email"
+							type="email"
+							placeholder="admin@esempio.it"
+							autocomplete="username"
+						/>
+					</div>
 					<div class="form-group">
 						<label class="form-label">Password Admin</label>
 						<input
@@ -2533,163 +2557,196 @@
 
 		<script>
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-			//  SUPABASE CLIENT
+			//  SUPABASE CLIENT (con Auth reale)
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			// La anon key qui sotto è PUBBLICA per design: identifica solo il
+			// progetto Supabase, non concede permessi. I permessi reali sono
+			// decisi dalle policy RLS sul database (vedi 01_enable_rls_policies.sql).
+			// Con RLS attive: SELECT è aperto a tutti, INSERT/UPDATE/DELETE
+			// richiedono un JWT di sessione valido (rilasciato da supabase.auth
+			// dopo login con email+password reali, verificate server-side).
 			const SB_URL = "https://unkfxrrdpheqhpibwohp.supabase.co";
-			const SB_KEY =
+			const SB_ANON_KEY =
 				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2Z4cnJkcGhlcWhwaWJ3b2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDEzMDEsImV4cCI6MjA5NjAxNzMwMX0.BIMyAAde4JS82eaMIq-qzdWckyPSm7KFSdsa6BFz6j8";
 
-			function sbHeaders(extra = {}) {
-				return {
-					"Content-Type": "application/json",
-					apikey: SB_KEY,
-					Authorization: "Bearer " + SB_KEY,
-					Prefer: "return=representation",
-					...extra,
-				};
+			const sb = window.supabase.createClient(SB_URL, SB_ANON_KEY, {
+				auth: { persistSession: true, autoRefreshToken: true },
+			});
+
+			// ── Helper DB tramite client supabase-js ──────────────────────────────
+			// Le scritture (insert/update/delete) passano automaticamente il JWT
+			// dell'utente loggato, se presente. Senza login valido, RLS le rifiuta
+			// lato server — non più un controllo "decorativo" in JS.
+			async function sbSelect(table, query = {}) {
+				let q = sb.from(table).select(query.columns || "*");
+				if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
+				if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
+				if (query.limit) q = q.limit(query.limit);
+				const { data, error } = await q;
+				if (error) throw new Error("Supabase: " + error.message);
+				return data;
 			}
-			async function sbFetch(path, opts = {}) {
-				const res = await fetch(SB_URL + "/rest/v1/" + path, {
-					...opts,
-					headers: { ...sbHeaders(), ...(opts.headers || {}) },
-				});
-				if (!res.ok)
-					throw new Error("Supabase " + res.status + ": " + (await res.text()));
-				const txt = await res.text();
-				return txt ? JSON.parse(txt) : null;
+			async function sbInsert(table, row) {
+				const { data, error } = await sb.from(table).insert(row).select();
+				if (error) throw new Error("Supabase: " + error.message);
+				return data?.[0] ?? null;
+			}
+			async function sbUpdate(table, id, patch) {
+				const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
+				if (error) throw new Error("Supabase: " + error.message);
+				return data?.[0] ?? null;
+			}
+			async function sbDelete(table, id) {
+				const { error } = await sb.from(table).delete().eq("id", id);
+				if (error) throw new Error("Supabase: " + error.message);
+			}
+			async function sbUpsertSetting(key, value) {
+				const { error } = await sb
+					.from("settings")
+					.upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" });
+				if (error) throw new Error("Supabase: " + error.message);
 			}
 
-			async function dbGetCars() {
-				return sbFetch("cars?select=*&order=created_at.desc");
+			// ── Colonne ridotte per il polling/lista (admin grid) ─────────────────
+			// ~14 colonne vs SELECT * (~32). Risparmio ~55% egress per ogni poll.
+			// category/transmission incluse: servono ai filtri chip e al footer della card.
+			const CARD_COLS = "id,brand,model,year,km,price,fuel,hp,emoji,status,images,category,transmission,created_at";
+
+			// ── Cache sessionStorage per le card ───────────────────────────────────
+			// Evita la chiamata iniziale se la pagina viene riaperta entro il TTL.
+			const CACHE_KEY_CARDS    = "gg_admin_cards_v2";
+			const CACHE_KEY_SETTINGS = "gg_admin_settings_v2";
+			const CACHE_TTL_CARDS    = 2 * 60 * 1000;   // 2 min (admin vuole dati freschi)
+			const CACHE_TTL_SETTINGS = 10 * 60 * 1000;  // 10 min
+
+			function cacheRead(key, ttl) {
+				try {
+					const c = JSON.parse(sessionStorage.getItem(key));
+					if (c && Date.now() - c.ts < ttl) return c.data;
+				} catch {}
+				return null;
 			}
-			async function dbInsertCar(c) {
-				const r = await sbFetch("cars", {
-					method: "POST",
-					body: JSON.stringify(carToRow(c)),
+			function cacheWrite(key, data) {
+				try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+			}
+			function cacheInvalidate(key) {
+				try { sessionStorage.removeItem(key); } catch {}
+			}
+
+			// ── LRU in-memory per i dettagli singolo veicolo (max 30 entry) ───────
+			// Quando l'admin apre il form di modifica, non ri-scarica se già noto.
+			const _detailCache = new Map();
+			function detailCacheGet(id) { return _detailCache.get(id) ?? null; }
+			function detailCacheSet(id, data) {
+				if (_detailCache.size >= 30) _detailCache.delete(_detailCache.keys().next().value);
+				_detailCache.set(id, data);
+			}
+			function detailCacheInvalidate(id) { _detailCache.delete(id); }
+
+			// ── DB FUNCTIONS ───────────────────────────────────────────────────────
+
+			// Lista leggera per la grid/lista admin
+			async function dbGetCards() {
+				return sbSelect("cars", {
+					columns: CARD_COLS,
+					order: { col: "created_at", asc: false },
 				});
-				return Array.isArray(r) ? r[0] : r;
+			}
+
+			// Dettaglio completo di un singolo veicolo, solo quando serve (form edit)
+			async function dbGetCarDetail(id) {
+				const cached = detailCacheGet(id);
+				if (cached) return cached;
+				const safeId = Number.parseInt(id, 10);
+				if (!Number.isSafeInteger(safeId) || safeId <= 0) throw new Error("ID non valido.");
+				const rows = await sbSelect("cars", { eq: { id: safeId }, limit: 1 });
+				const row = rows?.[0] ?? null;
+				if (row) detailCacheSet(id, rowToCar(row));
+				return row ? rowToCar(row) : null;
+			}
+
+			// Le scritture richiedono una sessione admin valida: senza login,
+			// RLS rifiuta la richiesta lato server con un errore esplicito.
+			async function dbInsertCar(c) {
+				const r = await sbInsert("cars", carToRow(c));
+				cacheInvalidate(CACHE_KEY_CARDS); // catalogo cambiato
+				return r;
 			}
 			async function dbUpdateCar(id, c) {
-				const r = await sbFetch(`cars?id=eq.${id}`, {
-					method: "PATCH",
-					body: JSON.stringify(carToRow(c)),
-				});
-				return Array.isArray(r) ? r[0] : r;
+				const safeId = Number.parseInt(id, 10);
+				if (!Number.isSafeInteger(safeId) || safeId <= 0)
+					throw new Error("ID veicolo non valido.");
+				const r = await sbUpdate("cars", safeId, carToRow(c));
+				cacheInvalidate(CACHE_KEY_CARDS);
+				detailCacheInvalidate(safeId);
+				return r;
 			}
 			async function dbDeleteCar(id) {
-				await sbFetch(`cars?id=eq.${id}`, {
-					method: "DELETE",
-					headers: { Prefer: "" },
-				});
+				const safeId = Number.parseInt(id, 10);
+				if (!Number.isSafeInteger(safeId) || safeId <= 0)
+					throw new Error("ID veicolo non valido.");
+				await sbDelete("cars", safeId);
+				cacheInvalidate(CACHE_KEY_CARDS);
+				detailCacheInvalidate(safeId);
 			}
 			async function dbGetSettings() {
-				const rows = await sbFetch("settings?select=key,value");
+				const cached = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
+				if (cached) return cached;
+				const rows = await sbSelect("settings", { columns: "key,value" });
 				const o = {};
 				(rows || []).forEach((r) => {
-					try {
-						o[r.key] = JSON.parse(r.value);
-					} catch {
-						o[r.key] = r.value;
-					}
+					try { o[r.key] = JSON.parse(r.value); }
+					catch { o[r.key] = r.value; }
 				});
+				cacheWrite(CACHE_KEY_SETTINGS, o);
 				return o;
 			}
 			async function dbUpsertSetting(key, value) {
-				await sbFetch("settings", {
-					method: "POST",
-					headers: {
-						Prefer: "resolution=merge-duplicates,return=representation",
-					},
-					body: JSON.stringify({ key, value: JSON.stringify(value) }),
-				});
+				await sbUpsertSetting(key, value);
+				cacheInvalidate(CACHE_KEY_SETTINGS); // settings cambiate: invalida
 			}
 
 			function carToRow(c) {
 				return {
-					brand: c.brand,
-					model: c.model,
-					year: c.year || null,
-					km: c.km || null,
-					price: c.price || null,
-					fuel: c.fuel || null,
-					transmission: c.transmission || null,
-					category: c.category || null,
-					hp: c.hp || null,
-					color: c.color || null,
-					emoji: c.emoji || null,
-					status: c.status || "disponibile",
-					description: c.desc || null,
-					optionals: c.optionals || [],
-					images: c.images || [],
-					// Dati di base
-					carrozzeria: c.carrozzeria || null,
-					tipo_veicolo: c.tipo_veicolo || null,
-					trazione: c.trazione || null,
-					posti: c.posti || null,
-					porte: c.porte || null,
+					brand: c.brand, model: c.model,
+					year: c.year || null, km: c.km || null, price: c.price || null,
+					fuel: c.fuel || null, transmission: c.transmission || null,
+					category: c.category || null, hp: c.hp || null,
+					color: c.color || null, emoji: c.emoji || null,
+					status: c.status || "disponibile", description: c.desc || null,
+					optionals: c.optionals || [], images: c.images || [],
+					carrozzeria: c.carrozzeria || null, tipo_veicolo: c.tipo_veicolo || null,
+					trazione: c.trazione || null, posti: c.posti || null, porte: c.porte || null,
 					per_neopatentati: c.per_neopatentati || false,
 					foto_dimostrative: c.foto_dimostrative || false,
-					// Cronologia
 					mese_immatricolazione: c.mese_immatricolazione || null,
-					anno_produzione: c.anno_produzione || null,
-					revisione: c.revisione || null,
-					// Dati tecnici
-					cilindrata: c.cilindrata || null,
-					valvole: c.valvole || null,
-					cilindri: c.cilindri || null,
-					peso: c.peso || null,
-					// Ambiente
-					classe_emissioni: c.classe_emissioni || null,
-					emissioni_co2: c.emissioni_co2 || null,
-					// Colore & interni
-					colore_interno: c.colore_interno || null,
-					tipo_interno: c.tipo_interno || null,
+					anno_produzione: c.anno_produzione || null, revisione: c.revisione || null,
+					cilindrata: c.cilindrata || null, valvole: c.valvole || null,
+					cilindri: c.cilindri || null, peso: c.peso || null,
+					classe_emissioni: c.classe_emissioni || null, emissioni_co2: c.emissioni_co2 || null,
+					colore_interno: c.colore_interno || null, tipo_interno: c.tipo_interno || null,
 					colore_tetto: c.colore_tetto || null,
-					// Equipaggiamento categorie
-					eq_comfort: c.eq_comfort || [],
-					eq_media: c.eq_media || [],
+					eq_comfort: c.eq_comfort || [], eq_media: c.eq_media || [],
 					eq_sicurezza: c.eq_sicurezza || [],
 				};
 			}
 			function rowToCar(r) {
 				return {
-					id: r.id,
-					brand: r.brand,
-					model: r.model,
-					year: r.year,
-					km: r.km,
-					price: r.price,
-					fuel: r.fuel,
-					transmission: r.transmission,
-					category: r.category,
-					hp: r.hp,
-					color: r.color,
-					emoji: r.emoji,
-					status: r.status,
-					desc: r.description,
-					optionals: r.optionals || [],
-					images: r.images || [],
-					carrozzeria: r.carrozzeria,
-					tipo_veicolo: r.tipo_veicolo,
-					trazione: r.trazione,
-					posti: r.posti,
-					porte: r.porte,
-					per_neopatentati: r.per_neopatentati,
-					foto_dimostrative: r.foto_dimostrative,
+					id: r.id, brand: r.brand, model: r.model, year: r.year, km: r.km,
+					price: r.price, fuel: r.fuel, transmission: r.transmission,
+					category: r.category, hp: r.hp, color: r.color, emoji: r.emoji,
+					status: r.status, desc: r.description,
+					optionals: r.optionals || [], images: r.images || [],
+					carrozzeria: r.carrozzeria, tipo_veicolo: r.tipo_veicolo,
+					trazione: r.trazione, posti: r.posti, porte: r.porte,
+					per_neopatentati: r.per_neopatentati, foto_dimostrative: r.foto_dimostrative,
 					mese_immatricolazione: r.mese_immatricolazione,
-					anno_produzione: r.anno_produzione,
-					revisione: r.revisione,
-					cilindrata: r.cilindrata,
-					valvole: r.valvole,
-					cilindri: r.cilindri,
-					peso: r.peso,
-					classe_emissioni: r.classe_emissioni,
-					emissioni_co2: r.emissioni_co2,
-					colore_interno: r.colore_interno,
-					tipo_interno: r.tipo_interno,
-					colore_tetto: r.colore_tetto,
-					eq_comfort: r.eq_comfort || [],
-					eq_media: r.eq_media || [],
+					anno_produzione: r.anno_produzione, revisione: r.revisione,
+					cilindrata: r.cilindrata, valvole: r.valvole, cilindri: r.cilindri,
+					peso: r.peso, classe_emissioni: r.classe_emissioni,
+					emissioni_co2: r.emissioni_co2, colore_interno: r.colore_interno,
+					tipo_interno: r.tipo_interno, colore_tetto: r.colore_tetto,
+					eq_comfort: r.eq_comfort || [], eq_media: r.eq_media || [],
 					eq_sicurezza: r.eq_sicurezza || [],
 				};
 			}
@@ -2739,6 +2796,67 @@
 			];
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			//  ADAPTIVE POLLING
+			//  • Intervallo base 5 min in foreground  (era 60s → -83% chiamate)
+			//  • 15 min quando la tab è in background (visibility API)
+			//  • Exponential backoff su errore, max 30 min
+			//  • Hash diff sui campi volatili: nessun re-render se nulla cambia
+			//  • Fetch usa CARD_COLS (colonne ridotte): -65% payload per chiamata
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			const POLL_FG  = 5  * 60 * 1000;
+			const POLL_BG  = 15 * 60 * 1000;
+			const POLL_MAX = 30 * 60 * 1000;
+
+			let _pollTimer = null;
+			let _pollBusy  = false;
+			let _pollDelay = POLL_FG;
+
+			function cardsHash(cards) {
+				return cards.map(c => `${c.id}:${c.status}:${c.price}:${c.km}`).join("|");
+			}
+			function schedulePoll() {
+				clearTimeout(_pollTimer);
+				_pollTimer = setTimeout(doPoll, document.hidden ? POLL_BG : _pollDelay);
+			}
+			async function doPoll() {
+				if (_pollBusy) { schedulePoll(); return; }
+				_pollBusy = true;
+				try {
+					const rows = await dbGetCards();
+					const hash = cardsHash(rows || []);
+					if (hash !== window._carsHash) {
+						window._carsHash = hash;
+						// Aggiorna state con i dati leggeri
+						state.cars = (rows || []).map(r => ({
+							id: r.id, brand: r.brand, model: r.model, year: r.year,
+							km: r.km, price: r.price, fuel: r.fuel, hp: r.hp,
+							emoji: r.emoji, status: r.status, images: r.images || [],
+							category: r.category, transmission: r.transmission,
+							created_at: r.created_at,
+						}));
+						// Invalida i dettagli cached: il catalogo è cambiato
+						_detailCache.clear();
+						cacheWrite(CACHE_KEY_CARDS, state.cars);
+						requestAnimationFrame(() => {
+							renderCars();
+							const ap = document.getElementById("admin-panel");
+							if (ap && ap.classList.contains("open")) renderAdminCars();
+						});
+					}
+					_pollDelay = POLL_FG; // reset backoff
+				} catch {
+					_pollDelay = Math.min(_pollDelay * 2, POLL_MAX);
+				}
+				_pollBusy = false;
+				schedulePoll();
+			}
+			// Pausa in background, fetch immediato al ritorno in foreground
+			document.addEventListener("visibilitychange", () => {
+				if (!document.hidden) doPoll();
+				else schedulePoll();
+			});
+
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  INIT
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			async function startApp() {
@@ -2746,61 +2864,67 @@
 				lo.style.display = "flex";
 				setSyncStatus("syncing", "Connessione...");
 				try {
-					document.getElementById("loader-text").textContent =
-						"Caricamento veicoli...";
-					const [cars, settings] = await Promise.all([
-						dbGetCars(),
-						dbGetSettings(),
+					document.getElementById("loader-text").textContent = "Caricamento veicoli...";
+
+					// Usa la cache sessionStorage se disponibile e fresca
+					const cachedCards    = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
+					const cachedSettings = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
+
+					const [rawCards, settings] = await Promise.all([
+						cachedCards    ? Promise.resolve(cachedCards)    : dbGetCards(),
+						cachedSettings ? Promise.resolve(cachedSettings) : dbGetSettings(),
 					]);
-					state.cars = (cars || []).map(rowToCar);
+
+					// rawCards dalla cache sono già oggetti card; dal DB sono righe raw
+					const isRaw = rawCards?.[0] && "description" in rawCards[0] === false
+						&& rawCards[0]?.brand !== undefined
+						? false  // da cache → già card
+						: true;
+
+					state.cars = (rawCards || []).map(r => isRaw
+						? { id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km,
+							price:r.price, fuel:r.fuel, hp:r.hp, emoji:r.emoji,
+							status:r.status, images:r.images||[],
+							category:r.category, transmission:r.transmission,
+							created_at:r.created_at }
+						: r
+					);
+
+					if (!cachedCards)    cacheWrite(CACHE_KEY_CARDS, state.cars);
+					if (!cachedSettings) cacheWrite(CACHE_KEY_SETTINGS, settings);
+
+					// Salva hash iniziale per il polling diff
+					window._carsHash = cardsHash(state.cars);
+
 					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
-					if (settings.name) state.settings.name = settings.name;
-					if (settings.address) state.settings.address = settings.address;
-					setSyncStatus("", "Supabase ✓");
+					if (settings.name)     state.settings.name     = settings.name;
+					if (settings.address)  state.settings.address  = settings.address;
+
+					setSyncStatus("", cachedCards ? "Da cache ✓" : "Supabase ✓");
 				} catch (e) {
 					setSyncStatus("error", "Errore DB");
 					showToast("Errore connessione: " + e.message, "error");
 				}
-				requestAnimationFrame(() => {
-					renderCars();
-					animateStat();
-				});
+				requestAnimationFrame(() => { renderCars(); animateStat(); });
 				setTimeout(() => {
 					lo.classList.add("hidden");
 					setTimeout(() => (lo.style.display = "none"), 600);
 				}, 500);
+				// Avvia il polling adattivo (una sola volta)
 				if (!window._pollStarted) {
 					window._pollStarted = true;
-					let _busy = false;
-					setInterval(async () => {
-						if (_busy) return;
-						_busy = true;
-						try {
-							const cars = await dbGetCars();
-							const j = JSON.stringify(cars);
-							if (j !== window._lastCarsJson) {
-								window._lastCarsJson = j;
-								state.cars = (cars || []).map(rowToCar);
-								requestAnimationFrame(() => {
-									renderCars();
-									if (
-										document
-											.getElementById("admin-panel")
-											.classList.contains("open")
-									)
-										renderAdminCars();
-								});
-							}
-						} catch {}
-						_busy = false;
-					}, 60000);
+					schedulePoll();
 				}
 			}
 
 			window.addEventListener("DOMContentLoaded", () => {
-				startApp().then(() => {
-					// Ripristina sessione admin se era attiva nella stessa sessione browser
-					if (sessionStorage.getItem("ae_admin") === "1") {
+				startApp().then(async () => {
+					// Ripristina la sessione admin SOLO se Supabase conferma un JWT
+					// valido e non scaduto. Impostare una variabile locale (es. da
+					// console del browser) non ha più alcun effetto: questo controllo
+					// interroga il server, non un flag locale arbitrario.
+					const { data } = await sb.auth.getSession();
+					if (data?.session) {
 						state.currentUser = "admin";
 						document.getElementById("login-btn").hidden = true;
 						document.getElementById("logout-btn").hidden = false;
@@ -2832,15 +2956,51 @@
 					.replace(/&/g, "&amp;")
 					.replace(/</g, "&lt;")
 					.replace(/>/g, "&gt;")
-					.replace(/"/g, "&quot;");
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#39;");
+			const jsStr = (s) => JSON.stringify(String(s ?? ""));
+			const safeText = (s, fallback = "") => String(s ?? fallback);
+			const safeEmoji = (s) => esc(safeText(s, "🚗").slice(0, 8));
+			function safeImageSrc(src) {
+				const value = String(src || "").trim();
+				if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(value))
+					return value;
+				try {
+					const url = new URL(value, window.location.href);
+					return url.protocol === "https:" ? url.href : "";
+				} catch {
+					return "";
+				}
+			}
+			function safeWhatsAppNumber() {
+				const digits = String(state.settings.waNumber || "")
+					.replace(/\D/g, "")
+					.slice(0, 15);
+				return digits || "3932994862";
+			}
+			function openExternal(url) {
+				window.open(url, "_blank", "noopener,noreferrer");
+			}
+			// requireAdmin è ora solo una scorciatoia per la UI (mostra subito il
+			// prompt di login se sembra che l'utente non sia autenticato, senza
+			// aspettare una chiamata di rete). NON è più il meccanismo di sicurezza:
+			// anche bypassando questa funzione (es. da console), ogni scrittura
+			// reale al DB passa dal client supabase-js, che allega il JWT di
+			// sessione corrente — e le policy RLS sul database rifiutano la
+			// richiesta lato server se quel JWT non è valido o assente.
+			function requireAdmin() {
+				if (state.currentUser === "admin") return true;
+				showToast("Sessione admin richiesta.", "error");
+				openLogin();
+				return false;
+			}
 
 			function setSyncStatus(cls, label) {
 				const visible = state.currentUser === "admin";
 				["sync-dot", "admin-sync-dot"].forEach((id) => {
 					const e = document.getElementById(id);
 					if (e) e.className = "sync-dot" + (cls ? " " + cls : "");
-					e.parentElement.style.display = visible ? 'flex' : 'none';
-
+					e.parentElement.style.display = visible ? "flex" : "none";
 				});
 				["sync-label", "admin-sync-label"].forEach((id) => {
 					const e = document.getElementById(id);
@@ -2882,9 +3042,11 @@
 				}
 				grid.innerHTML = list
 					.map((car) => {
+						const imageSrc = safeImageSrc(car.images?.[0]);
 						const img = car.images?.length
-							? `<img src="${esc(car.images[0])}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${car.emoji || "🚗"}</div>`
-							: `<div class="car-img-placeholder">${car.emoji || "🚗"}</div>`;
+							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
+							: `<div class="car-img-placeholder">${safeEmoji(car.emoji)}</div>`;
+						const waMessage = `Salve! Sono interessato al veicolo: ${safeText(car.brand)} ${safeText(car.model)} (${car.year || ""}). Potete darmi informazioni?`;
 						return `
     <div class="car-card" onclick="openCarDetail(${car.id})">
       <div class="car-img-wrap">
@@ -2904,15 +3066,15 @@
         <div class="car-specs">
           <span class="spec">📅 ${car.year || "—"}</span>
           <span class="spec">🛣️ ${fmtKm(car.km)} km</span>
-          <span class="spec">⛽ ${car.fuel || "—"}</span>
+          <span class="spec">⛽ ${esc(car.fuel || "—")}</span>
           ${car.hp ? `<span class="spec">⚡ ${car.hp} CV</span>` : ""}
         </div>
         <div class="car-footer">
           <div>
             <div class="car-price">€ ${fmtPrice(car.price)}</div>
-            <div class="car-transmission">${car.transmission || ""}</div>
+            <div class="car-transmission">${esc(car.transmission || "")}</div>
           </div>
-          <button class="btn btn-wa btn-sm" onclick="event.stopPropagation();openWhatsApp('Salve! Sono interessato al veicolo: ${esc(car.brand)} ${esc(car.model)} (${car.year || ""}). Potete darmi informazioni?')">
+          <button class="btn btn-wa btn-sm" onclick="event.stopPropagation();openWhatsApp(${esc(jsStr(waMessage))})">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
             WA
           </button>
@@ -2940,8 +3102,19 @@
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  CAR DETAIL
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-			function openCarDetail(id) {
-				const car = state.cars.find((c) => c.id === id);
+			// openCarDetail è ora async: scarica i dettagli completi on-demand
+			// (LRU cache → 0 chiamate extra se il veicolo è già stato aperto/modificato
+			// di recente). La card in state.cars contiene solo i campi leggeri di CARD_COLS.
+			async function openCarDetail(id) {
+				const thin = state.cars.find((c) => c.id === id);
+				if (!thin) return;
+				let car;
+				try {
+					car = await dbGetCarDetail(id);
+				} catch (e) {
+					showToast("Errore caricamento dettagli: " + e.message, "error");
+					return;
+				}
 				if (!car) return;
 				document.getElementById("detail-title").textContent =
 					`${car.brand} ${car.model}`;
@@ -2964,12 +3137,12 @@
 				}
 				const thumbs = document.getElementById("detail-thumbs");
 				if (imgs.length) {
-					gal.innerHTML = `<img id="detail-main-img" src="${esc(imgs[0])}" loading="lazy" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${esc(car.emoji || "🚗")}</div>'">`;
+					gal.innerHTML = `<img id="detail-main-img" src="${esc(safeImageSrc(imgs[0]))}" loading="lazy" alt="${esc(car.brand)}" onerror="this.parentElement.innerHTML='<div class=detail-gallery-placeholder>${safeEmoji(car.emoji)}</div>'">`;
 					if (imgs.length > 1) {
 						thumbs.innerHTML = imgs
 							.map(
 								(s, i) =>
-									`<img class="detail-thumb${i === 0 ? " active" : ""}" src="${esc(s)}" onclick="setDetailImg(${i},'${esc(s)}')" onerror="this.style.display='none'">`,
+									`<img class="detail-thumb${i === 0 ? " active" : ""}" src="${esc(safeImageSrc(s))}" onclick="setDetailImg(${i}, ${esc(jsStr(safeImageSrc(s)))})" onerror="this.style.display='none'">`,
 							)
 							.join("");
 						thumbs.style.display = "flex";
@@ -2977,7 +3150,7 @@
 						thumbs.style.display = "none";
 					}
 				} else {
-					gal.innerHTML = `<div class="detail-gallery-placeholder">${car.emoji || "🚗"}</div>`;
+					gal.innerHTML = `<div class="detail-gallery-placeholder">${safeEmoji(car.emoji)}</div>`;
 					thumbs.style.display = "none";
 				}
 
@@ -3081,7 +3254,7 @@
 			}
 			function setDetailImg(idx, src) {
 				const m = document.getElementById("detail-main-img");
-				if (m) m.src = src;
+				if (m) m.src = safeImageSrc(src);
 				document
 					.querySelectorAll(".detail-thumb")
 					.forEach((t, i) => t.classList.toggle("active", i === idx));
@@ -3091,10 +3264,9 @@
 			//  WHATSAPP
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openWhatsApp(msg) {
-				const num = state.settings.waNumber.replace(/\D/g, "");
-				window.open(
+				const num = safeWhatsAppNumber();
+				openExternal(
 					`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,
-					"_blank",
 				);
 			}
 
@@ -3104,21 +3276,24 @@
 			function openLogin() {
 				openModal("auth-modal");
 			}
-			async function hashPassword(pwd) {
-				const enc = new TextEncoder();
-				const buf = await crypto.subtle.digest("SHA-256", enc.encode(pwd));
-				return Array.from(new Uint8Array(buf))
-					.map((b) => b.toString(16).padStart(2, "0"))
-					.join("");
-			}
 
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			//  LOGIN REALE via Supabase Auth
+			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+			// La verifica della password avviene lato server (Supabase Auth),
+			// non più confrontando un hash in JS. Il risultato è un JWT di
+			// sessione che le policy RLS sul DB controllano per ogni scrittura.
+			// Rate limiting sui tentativi di login è gestito nativamente da
+			// Supabase — non serve più un throttle fatto a mano in localStorage.
 			async function doLogin() {
 				const err = document.getElementById("auth-error");
 				const btn = document.querySelector("#auth-modal .btn-accent");
+				const email = document.getElementById("auth-email").value.trim();
 				const pass = document.getElementById("auth-pass").value;
-				if (!pass) {
+
+				if (!email || !pass) {
 					err.style.display = "block";
-					err.textContent = "Inserisci la password.";
+					err.textContent = "Inserisci email e password.";
 					return;
 				}
 
@@ -3126,49 +3301,45 @@
 				btn.textContent = "Verifica...";
 				err.style.display = "none";
 
-				try {
-					const inputHash = await hashPassword(pass);
-					// Leggi hash salvato su Supabase
-					const rows = await sbFetch(
-						"settings?key=eq.adminPassHash&select=value",
-					);
-					const storedHash = rows?.[0]?.value
-						? JSON.parse(rows[0].value)
-						: null;
+				const { data, error } = await sb.auth.signInWithPassword({
+					email,
+					password: pass,
+				});
 
-					if (!storedHash) {
-						// Nessun hash nel DB — primo accesso, accetta e salva
-						await dbUpsertSetting("adminPassHash", inputHash);
-						grantAdmin();
-					} else if (inputHash === storedHash) {
-						grantAdmin();
-					} else {
-						err.textContent = "Password non valida.";
-						err.style.display = "block";
-					}
-				} catch (e) {
-					err.textContent = "Errore di connessione: " + e.message;
+				if (error) {
+					err.textContent =
+						error.message === "Invalid login credentials"
+							? "Email o password non valide."
+							: "Errore di accesso: " + error.message;
 					err.style.display = "block";
+				} else if (data?.session) {
+					await grantAdmin();
 				}
 
 				btn.disabled = false;
 				btn.textContent = "Accedi";
 			}
 
-			function grantAdmin() {
+			// grantAdmin NON concede più alcun permesso da solo: aggiorna solo la
+			// UI in risposta a una sessione Supabase reale e già autenticata.
+			// Chiamarla manualmente da console (es. window.grantAdmin()) non ha
+			// più effetto sulle scritture al DB: quelle restano bloccate dalle
+			// policy RLS finché sb.auth.getSession() non restituisce un JWT valido.
+			async function grantAdmin() {
+				const { data } = await sb.auth.getSession();
+				if (!data?.session) return; // nessuna sessione reale: non fare nulla
 				state.currentUser = "admin";
 				document.getElementById("auth-error").style.display = "none";
 				closeModal("auth-modal");
-				sessionStorage.setItem("ae_admin", "1");
 				document.getElementById("login-btn").hidden = true;
 				document.getElementById("logout-btn").hidden = false;
 				document.getElementById("admin-indicator").classList.add("visible");
 				document.getElementById("admin-fab").classList.add("visible");
 				showToast("Accesso effettuato", "success");
 			}
-			function logout() {
+			async function logout() {
+				await sb.auth.signOut(); // invalida il JWT lato server
 				state.currentUser = null;
-				sessionStorage.removeItem("ae_admin");
 				document.getElementById("login-btn").hidden = false;
 				document.getElementById("logout-btn").hidden = true;
 				document.getElementById("admin-indicator").classList.remove("visible");
@@ -3184,10 +3355,7 @@
 			//  ADMIN
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openAdmin() {
-				if (!state.currentUser) {
-					openLogin();
-					return;
-				}
+				if (!requireAdmin()) return;
 				document.getElementById("admin-panel").classList.add("open");
 				renderAdminCars();
 				loadSettings();
@@ -3229,9 +3397,10 @@
 				}
 				list.innerHTML = state.cars
 					.map((car) => {
+						const imageSrc = safeImageSrc(car.images?.[0]);
 						const thumb = car.images?.length
-							? `<div class="admin-car-thumb"><img src="${esc(car.images[0])}" onerror="this.parentElement.innerHTML='${esc(car.emoji || "🚗")}'"></div>`
-							: `<div class="admin-car-thumb">${car.emoji || "🚗"}</div>`;
+							? `<div class="admin-car-thumb"><img src="${esc(imageSrc)}" onerror="this.parentElement.innerHTML='${safeEmoji(car.emoji)}'"></div>`
+							: `<div class="admin-car-thumb">${safeEmoji(car.emoji)}</div>`;
 						return `
     <div class="admin-car-row">
       ${thumb}
@@ -3239,7 +3408,7 @@
         <div class="admin-car-name">${esc(car.brand)} ${esc(car.model)}</div>
         <div class="admin-car-meta">
           <span class="status-dot status-${car.status !== "venduta" ? "available" : "sold"}"></span>
-          ${car.year || "—"} · ${fmtKm(car.km)} km · ${car.fuel || "—"} · ${car.category || "—"}
+          ${car.year || "—"} · ${fmtKm(car.km)} km · ${esc(car.fuel || "—")} · ${esc(car.category || "—")}
           ${car.images?.length ? " · 📷" + car.images.length : ""}
           ${car.status === "promo" ? '<span class="tag-promo"> · PROMO</span>' : ""}
           ${car.status === "venduta" ? '<span class="tag-sold"> · VENDUTA</span>' : ""}
@@ -3258,7 +3427,11 @@
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			//  CAR FORM
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-			function openCarForm(id) {
+			// openCarForm è ora async: per la modalità edit recupera i dettagli
+			// completi on-demand (via LRU cache → 0 chiamate se già aperti di recente).
+			// Per "nuovo veicolo" non fa alcuna chiamata al DB.
+			async function openCarForm(id) {
+				if (!requireAdmin()) return;
 				state.editingId = id || null;
 				state.pendingImages = [];
 				document.getElementById("form-modal-title").textContent = id
@@ -3266,9 +3439,19 @@
 					: "Aggiungi Veicolo";
 				document.getElementById("img-previews").innerHTML = "";
 				document.getElementById("f-img-url").value = "";
-				const car = id ? state.cars.find((c) => c.id === id) : null;
-				const f = (id, v) => {
-					const e = document.getElementById(id);
+
+				let car = null;
+				if (id) {
+					try {
+						car = await dbGetCarDetail(id); // lazy: usa cache se disponibile
+					} catch (e) {
+						showToast("Errore caricamento dettagli: " + e.message, "error");
+						return;
+					}
+				}
+
+				const f = (fid, v) => {
+					const e = document.getElementById(fid);
 					if (e) e.value = v ?? "";
 				};
 				f("f-brand", car?.brand);
@@ -3319,7 +3502,12 @@
 				openModal("car-form-modal");
 			}
 			function addPendingImage(src) {
-				state.pendingImages.push(src);
+				const safeSrc = safeImageSrc(src);
+				if (!safeSrc) {
+					showToast("Immagine non valida: usa HTTPS o file immagine supportati.", "error");
+					return;
+				}
+				state.pendingImages.push(safeSrc);
 				refreshPreviews();
 			}
 			function removePendingImage(idx) {
@@ -3330,15 +3518,15 @@
 				document.getElementById("img-previews").innerHTML = state.pendingImages
 					.map(
 						(src, i) =>
-							`<div class="img-preview"><img src="${esc(src)}" onerror="this.style.display='none'"><button class="img-remove" onclick="removePendingImage(${i})">✕</button></div>`,
+							`<div class="img-preview"><img src="${esc(safeImageSrc(src))}" onerror="this.style.display='none'"><button class="img-remove" onclick="removePendingImage(${i})">✕</button></div>`,
 					)
 					.join("");
 			}
 			function addImageUrl() {
 				const inp = document.getElementById("f-img-url");
 				const url = inp.value.trim();
-				if (!url.startsWith("http")) {
-					showToast("Inserisci un URL valido (https://...)", "error");
+				if (!safeImageSrc(url)) {
+					showToast("Inserisci un URL immagine valido in HTTPS.", "error");
 					return;
 				}
 				addPendingImage(url);
@@ -3346,6 +3534,10 @@
 			}
 			function handleFileUpload(input) {
 				Array.from(input.files || []).forEach((file) => {
+					if (!/^image\/(png|jpe?g|gif|webp)$/i.test(file.type)) {
+						showToast(`${file.name}: formato immagine non supportato`, "error");
+						return;
+					}
 					if (file.size > 2.5 * 1024 * 1024) {
 						showToast(`${file.name}: troppo grande (max 2MB)`, "error");
 						return;
@@ -3364,6 +3556,7 @@
 							.filter(Boolean)
 					: [];
 			async function saveCar() {
+				if (!requireAdmin()) return;
 				const brand = document.getElementById("f-brand").value.trim();
 				const model = document.getElementById("f-model").value.trim();
 				const price = parseFloat(document.getElementById("f-price").value);
@@ -3428,24 +3621,34 @@
 				btn.disabled = true;
 				btn.textContent = "Salvataggio...";
 				setSyncStatus("syncing", "Salvataggio...");
+				// Helper: crea una card leggera coerente con CARD_COLS
+				function toCard(row, carData, id) {
+					return {
+						id: row?.id ?? id,
+						brand: carData.brand, model: carData.model,
+						year: carData.year, km: carData.km, price: carData.price,
+						fuel: carData.fuel, hp: carData.hp, emoji: carData.emoji,
+						status: carData.status, images: carData.images || [],
+						category: carData.category, transmission: carData.transmission,
+						created_at: row?.created_at ?? new Date().toISOString(),
+					};
+				}
 				try {
 					if (state.editingId) {
 						const up = await dbUpdateCar(state.editingId, carData);
 						const idx = state.cars.findIndex((c) => c.id === state.editingId);
-						if (idx !== -1)
-							state.cars[idx] = rowToCar(
-								up || { ...carToRow(carData), id: state.editingId },
-							);
+						if (idx !== -1) state.cars[idx] = toCard(up, carData, state.editingId);
 						showToast("Veicolo aggiornato", "success");
 					} else {
-						state.cars.unshift(rowToCar(await dbInsertCar(carData)));
+						const inserted = await dbInsertCar(carData);
+						state.cars.unshift(toCard(inserted, carData, inserted?.id));
 						showToast("Veicolo aggiunto", "success");
 					}
+					// Ricalcola hash dopo modifica locale
+					window._carsHash = cardsHash(state.cars);
+					cacheWrite(CACHE_KEY_CARDS, state.cars);
 					setSyncStatus("", "Supabase ✓");
-					requestAnimationFrame(() => {
-						renderCars();
-						renderAdminCars();
-					});
+					requestAnimationFrame(() => { renderCars(); renderAdminCars(); });
 					closeModal("car-form-modal");
 				} catch (e) {
 					setSyncStatus("error", "Errore");
@@ -3455,17 +3658,17 @@
 				btn.textContent = "Salva Veicolo";
 			}
 			async function deleteCar(id) {
+				if (!requireAdmin()) return;
 				const car = state.cars.find((c) => c.id === id);
 				if (!car || !confirm(`Eliminare "${car.brand} ${car.model}"?`)) return;
 				setSyncStatus("syncing", "Eliminazione...");
 				try {
 					await dbDeleteCar(id);
 					state.cars = state.cars.filter((c) => c.id !== id);
+					window._carsHash = cardsHash(state.cars);
+					cacheWrite(CACHE_KEY_CARDS, state.cars);
 					setSyncStatus("", "Supabase ✓");
-					requestAnimationFrame(() => {
-						renderCars();
-						renderAdminCars();
-					});
+					requestAnimationFrame(() => { renderCars(); renderAdminCars(); });
 					showToast("Veicolo eliminato", "info");
 				} catch (e) {
 					setSyncStatus("error", "Errore");
@@ -3484,6 +3687,7 @@
 					state.settings.address || "";
 			}
 			async function saveSettings() {
+				if (!requireAdmin()) return;
 				state.settings.waNumber = document
 					.getElementById("s-wa-number")
 					.value.trim();
@@ -3504,7 +3708,11 @@
 					showToast("Errore: " + e.message, "error");
 				}
 			}
+			// Il cambio password ora passa da Supabase Auth (sb.auth.updateUser),
+			// non più da una riga hash in "settings" leggibile da chiunque abbia
+			// la anon key. Richiede una sessione admin valida già attiva.
 			async function changePassword() {
+				if (!requireAdmin()) return;
 				const np = document.getElementById("s-newpass").value;
 				const cp = document.getElementById("s-confpass").value;
 				if (!np || np.length < 6) {
@@ -3516,20 +3724,14 @@
 					return;
 				}
 
-				try {
-					const newHash = await hashPassword(np);
-					await dbUpsertSetting("adminPassHash", newHash);
-					// Rimuovi la password in chiaro dal DB se esiste ancora
-					await sbFetch("settings?key=eq.adminPass", {
-						method: "DELETE",
-						headers: { Prefer: "" },
-					});
-					document.getElementById("s-newpass").value = "";
-					document.getElementById("s-confpass").value = "";
-					showToast("Password aggiornata", "success");
-				} catch (e) {
-					showToast("Errore: " + e.message, "error");
+				const { error } = await sb.auth.updateUser({ password: np });
+				if (error) {
+					showToast("Errore: " + error.message, "error");
+					return;
 				}
+				document.getElementById("s-newpass").value = "";
+				document.getElementById("s-confpass").value = "";
+				showToast("Password aggiornata", "success");
 			}
 			function renderStats() {
 				const total = state.cars.length;
@@ -3571,7 +3773,10 @@
 				const c = document.getElementById("toast-container");
 				const t = document.createElement("div");
 				t.className = `toast ${type}`;
-				t.innerHTML = `<span>${{ success: "✅", error: "❌", info: "ℹ️" }[type] || "ℹ️"}</span> ${msg}`;
+				const icon = document.createElement("span");
+				icon.textContent =
+					{ success: "✅", error: "❌", info: "ℹ️" }[type] || "ℹ️";
+				t.append(icon, " " + String(msg));
 				c.appendChild(t);
 				setTimeout(() => {
 					t.style.cssText +=
