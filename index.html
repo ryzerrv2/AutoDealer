@@ -1536,6 +1536,17 @@
 			.toast.info {
 				border-left: 3px solid var(--accent);
 			}
+			.error-banner {
+				grid-column: 1 / -1;
+				background: #fef2f2;
+				border: 1px solid #fecaca;
+				color: #991b1b;
+				border-radius: 8px;
+				padding: 14px 18px;
+				font-size: 13px;
+				font-weight: 500;
+			}
+			.error-banner a { color: #991b1b; font-weight: 700; text-decoration: underline; cursor: pointer; }
 
 			/* ── ADMIN FAB ───────────────────────────────────── */
 			#admin-fab {
@@ -2573,72 +2584,42 @@
 				auth: { persistSession: true, autoRefreshToken: true },
 			});
 
-			// ── Retry per errori transitori (timeout, connessione) ────────────────
-			// "statement timeout" e "connection" sono errori transitori: ha senso
-			// riprovare. Errori permanenti (RLS, not found, validazione) non vanno
-			// ritentati: verrebbero propagati subito al chiamante.
+			// ── Gestione errori transitori ────────────────────────────────────────
+			// Con il pattern stale-while-revalidate i retry non servono più:
+			// i fetch avvengono in background e se falliscono si riprova al
+			// prossimo ciclo di polling. L'utente non aspetta mai una rete lenta.
+			// Teniamo solo il riconoscimento degli errori transitori per il polling.
 			const TRANSIENT = /timeout|connection|network|unavailable|503|504/i;
-			const RETRY_DELAYS = [800, 2000, 5000]; // 3 tentativi: 0.8s, 2s, 5s
-
-			async function withRetry(fn) {
-				let lastErr;
-				for (let i = 0; i <= RETRY_DELAYS.length; i++) {
-					try {
-						return await fn();
-					} catch (e) {
-						lastErr = e;
-						const isTransient = TRANSIENT.test(e.message);
-						const hasRetry    = i < RETRY_DELAYS.length;
-						if (!isTransient || !hasRetry) throw e; // errore permanente o tentativi esauriti
-						await new Promise(r => setTimeout(r, RETRY_DELAYS[i]));
-					}
-				}
-				throw lastErr;
-			}
 
 			// ── Helper DB tramite client supabase-js ──────────────────────────────
 			async function sbSelect(table, query = {}) {
-				return withRetry(async () => {
-					let q = sb.from(table).select(query.columns || "*");
-					if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
-					if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
-					if (query.limit) q = q.limit(query.limit);
-					const { data, error } = await q;
-					if (error) throw new Error("Supabase: " + error.message);
-					return data;
-				});
+				let q = sb.from(table).select(query.columns || "*");
+				if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
+				if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
+				if (query.limit) q = q.limit(query.limit);
+				const { data, error } = await q;
+				if (error) throw new Error("Supabase: " + error.message);
+				return data;
 			}
 			async function sbInsert(table, row) {
-				// Le scritture non vanno ritentate in caso di timeout: potrebbe
-				// essere andato a buon fine lato server anche se la risposta
-				// non è arrivata al client (rischio di doppio insert).
 				const { data, error } = await sb.from(table).insert(row).select();
 				if (error) throw new Error("Supabase: " + error.message);
 				return data?.[0] ?? null;
 			}
 			async function sbUpdate(table, id, patch) {
-				// UPDATE è idempotente: ritentare è sicuro (stesso risultato).
-				return withRetry(async () => {
-					const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
-					if (error) throw new Error("Supabase: " + error.message);
-					return data?.[0] ?? null;
-				});
+				const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
+				if (error) throw new Error("Supabase: " + error.message);
+				return data?.[0] ?? null;
 			}
 			async function sbDelete(table, id) {
-				// DELETE è idempotente: ritentare è sicuro.
-				return withRetry(async () => {
-					const { error } = await sb.from(table).delete().eq("id", id);
-					if (error) throw new Error("Supabase: " + error.message);
-				});
+				const { error } = await sb.from(table).delete().eq("id", id);
+				if (error) throw new Error("Supabase: " + error.message);
 			}
 			async function sbUpsertSetting(key, value) {
-				// UPSERT è idempotente: ritentare è sicuro.
-				return withRetry(async () => {
-					const { error } = await sb
-						.from("settings")
-						.upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" });
-					if (error) throw new Error("Supabase: " + error.message);
-				});
+				const { error } = await sb
+					.from("settings")
+					.upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" });
+				if (error) throw new Error("Supabase: " + error.message);
 			}
 
 			// ── Colonne ridotte per il polling/lista (admin grid) ─────────────────
@@ -2891,81 +2872,116 @@
 			});
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-			//  INIT
+			//  INIT — stale-while-revalidate
+			//  1. Legge la cache sessionStorage istantaneamente
+			//  2. Mostra subito i dati (o le skeleton se cache vuota)
+			//  3. Chiude l'overlay immediatamente — mai aspettare il DB
+			//  4. Fetcha in background e aggiorna la UI quando arriva
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			async function startApp() {
 				const lo = document.getElementById("loading-overlay");
 				lo.style.display = "flex";
-				setSyncStatus("syncing", "Connessione...");
-				try {
-					const loaderText = document.getElementById("loader-text");
-					loaderText.textContent = "Caricamento veicoli...";
 
-					// Usa la cache sessionStorage se disponibile e fresca
-					const cachedCards    = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
-					const cachedSettings = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
+				// ── Fase 1: dati dalla cache (sincrono, 0ms) ──────────────────────
+				const cachedCards    = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
+				const cachedSettings = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
 
-					// Se non in cache mostra feedback durante eventuali retry per timeout
-					if (!cachedCards || !cachedSettings) {
-						let attempt = 0;
-						const origWithRetry = window._withRetryHook; // non sovrascrivere globalmente
-						const interval = setInterval(() => {
-							attempt++;
-							if (attempt > 1) loaderText.textContent = `Riconnessione... (tentativo ${attempt})`;
-						}, 1500);
-						try {
-							var [rawCards, settings] = await Promise.all([
-								cachedCards    ? Promise.resolve(cachedCards)    : dbGetCards(),
-								cachedSettings ? Promise.resolve(cachedSettings) : dbGetSettings(),
-							]);
-						} finally {
-							clearInterval(interval);
-							loaderText.textContent = "Caricamento veicoli...";
-						}
-					} else {
-						var [rawCards, settings] = [cachedCards, cachedSettings];
-					}
-
-					// rawCards dalla cache sono già oggetti card; dal DB sono righe raw
-					const isRaw = rawCards?.[0] && "description" in rawCards[0] === false
-						&& rawCards[0]?.brand !== undefined
-						? false  // da cache → già card
-						: true;
-
-					state.cars = (rawCards || []).map(r => isRaw
-						? { id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km,
-							price:r.price, fuel:r.fuel, hp:r.hp, emoji:r.emoji,
-							status:r.status, images:r.images||[],
-							category:r.category, transmission:r.transmission,
-							created_at:r.created_at }
-						: r
-					);
-
-					if (!cachedCards)    cacheWrite(CACHE_KEY_CARDS, state.cars);
-					if (!cachedSettings) cacheWrite(CACHE_KEY_SETTINGS, settings);
-
-					// Salva hash iniziale per il polling diff
+				if (cachedCards) {
+					state.cars = cachedCards;
 					window._carsHash = cardsHash(state.cars);
-
-					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
-					if (settings.name)     state.settings.name     = settings.name;
-					if (settings.address)  state.settings.address  = settings.address;
-
-					setSyncStatus("", cachedCards ? "Da cache ✓" : "Supabase ✓");
-				} catch (e) {
-					setSyncStatus("error", "Errore DB");
-					showToast("Errore connessione: " + e.message, "error");
 				}
+				if (cachedSettings) {
+					applySettings(cachedSettings);
+				}
+
+				// ── Fase 2: mostra subito — overlay via immediatamente ────────────
+				// Se c'è cache: UI completa in <16ms (un frame).
+				// Se non c'è cache: skeleton già nel DOM, overlay sparisce lo stesso.
 				requestAnimationFrame(() => { renderCars(); animateStat(); });
 				setTimeout(() => {
 					lo.classList.add("hidden");
 					setTimeout(() => (lo.style.display = "none"), 600);
-				}, 500);
+				}, cachedCards ? 200 : 400);
+
+				// ── Fase 3: fetch in background, senza bloccare nulla ─────────────
+				const needCards    = !cachedCards;
+				const needSettings = !cachedSettings;
+
+				if (needCards || needSettings) {
+					setSyncStatus("syncing", "Aggiornamento...");
+					try {
+						const [rawCards, settings] = await Promise.all([
+							needCards    ? dbGetCards()    : Promise.resolve(null),
+							needSettings ? dbGetSettings() : Promise.resolve(null),
+						]);
+
+						if (rawCards) {
+							state.cars = rawCards.map(r => ({
+								id: r.id, brand: r.brand, model: r.model, year: r.year,
+								km: r.km, price: r.price, fuel: r.fuel, hp: r.hp,
+								emoji: r.emoji, status: r.status, images: r.images || [],
+								category: r.category, transmission: r.transmission,
+								created_at: r.created_at,
+							}));
+							window._carsHash = cardsHash(state.cars);
+							cacheWrite(CACHE_KEY_CARDS, state.cars);
+							// Aggiorna la UI con i dati freschi
+							requestAnimationFrame(() => { renderCars(); animateStat(); });
+						}
+						if (settings) {
+							applySettings(settings);
+							cacheWrite(CACHE_KEY_SETTINGS, settings);
+						}
+						setSyncStatus("", "Supabase ✓");
+					} catch (e) {
+						// Se non c'era nemmeno la cache: mostra errore nella grid
+						if (!cachedCards) {
+							document.getElementById("cars-grid")?.insertAdjacentHTML("afterbegin",
+								`<div class="error-banner">⚠️ Errore connessione: ${esc(e.message)} — <a href="" onclick="location.reload()">Riprova</a></div>`
+							);
+						}
+						setSyncStatus("error", "Errore DB");
+					}
+				} else {
+					setSyncStatus("", "Da cache ✓");
+					// Anche con cache fresca, fetcha in background per aggiornare
+					// i dati silenziosamente (stale-while-revalidate)
+					setTimeout(() => refreshInBackground(), 100);
+				}
+
 				// Avvia il polling adattivo (una sola volta)
 				if (!window._pollStarted) {
 					window._pollStarted = true;
 					schedulePoll();
 				}
+			}
+
+			function applySettings(settings) {
+				if (settings.waNumber) state.settings.waNumber = settings.waNumber;
+				if (settings.name)     state.settings.name     = settings.name;
+				if (settings.address)  state.settings.address  = settings.address;
+			}
+
+			// Refresh silenzioso in background senza bloccare nulla e senza
+			// mostrare loading — aggiorna solo se i dati sono effettivamente cambiati
+			async function refreshInBackground() {
+				try {
+					const rows = await dbGetCards();
+					const hash = cardsHash(rows || []);
+					if (hash !== window._carsHash) {
+						window._carsHash = hash;
+						state.cars = rows.map(r => ({
+							id: r.id, brand: r.brand, model: r.model, year: r.year,
+							km: r.km, price: r.price, fuel: r.fuel, hp: r.hp,
+							emoji: r.emoji, status: r.status, images: r.images || [],
+							category: r.category, transmission: r.transmission,
+							created_at: r.created_at,
+						}));
+						_detailCache.clear();
+						cacheWrite(CACHE_KEY_CARDS, state.cars);
+						requestAnimationFrame(() => { renderCars(); animateStat(); });
+					}
+				} catch {} // silenzioso: non disturbare l'utente con errori in background
 			}
 
 			window.addEventListener("DOMContentLoaded", () => {
