@@ -2573,38 +2573,72 @@
 				auth: { persistSession: true, autoRefreshToken: true },
 			});
 
+			// ── Retry per errori transitori (timeout, connessione) ────────────────
+			// "statement timeout" e "connection" sono errori transitori: ha senso
+			// riprovare. Errori permanenti (RLS, not found, validazione) non vanno
+			// ritentati: verrebbero propagati subito al chiamante.
+			const TRANSIENT = /timeout|connection|network|unavailable|503|504/i;
+			const RETRY_DELAYS = [800, 2000, 5000]; // 3 tentativi: 0.8s, 2s, 5s
+
+			async function withRetry(fn) {
+				let lastErr;
+				for (let i = 0; i <= RETRY_DELAYS.length; i++) {
+					try {
+						return await fn();
+					} catch (e) {
+						lastErr = e;
+						const isTransient = TRANSIENT.test(e.message);
+						const hasRetry    = i < RETRY_DELAYS.length;
+						if (!isTransient || !hasRetry) throw e; // errore permanente o tentativi esauriti
+						await new Promise(r => setTimeout(r, RETRY_DELAYS[i]));
+					}
+				}
+				throw lastErr;
+			}
+
 			// ── Helper DB tramite client supabase-js ──────────────────────────────
-			// Le scritture (insert/update/delete) passano automaticamente il JWT
-			// dell'utente loggato, se presente. Senza login valido, RLS le rifiuta
-			// lato server — non più un controllo "decorativo" in JS.
 			async function sbSelect(table, query = {}) {
-				let q = sb.from(table).select(query.columns || "*");
-				if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
-				if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
-				if (query.limit) q = q.limit(query.limit);
-				const { data, error } = await q;
-				if (error) throw new Error("Supabase: " + error.message);
-				return data;
+				return withRetry(async () => {
+					let q = sb.from(table).select(query.columns || "*");
+					if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
+					if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
+					if (query.limit) q = q.limit(query.limit);
+					const { data, error } = await q;
+					if (error) throw new Error("Supabase: " + error.message);
+					return data;
+				});
 			}
 			async function sbInsert(table, row) {
+				// Le scritture non vanno ritentate in caso di timeout: potrebbe
+				// essere andato a buon fine lato server anche se la risposta
+				// non è arrivata al client (rischio di doppio insert).
 				const { data, error } = await sb.from(table).insert(row).select();
 				if (error) throw new Error("Supabase: " + error.message);
 				return data?.[0] ?? null;
 			}
 			async function sbUpdate(table, id, patch) {
-				const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
-				if (error) throw new Error("Supabase: " + error.message);
-				return data?.[0] ?? null;
+				// UPDATE è idempotente: ritentare è sicuro (stesso risultato).
+				return withRetry(async () => {
+					const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
+					if (error) throw new Error("Supabase: " + error.message);
+					return data?.[0] ?? null;
+				});
 			}
 			async function sbDelete(table, id) {
-				const { error } = await sb.from(table).delete().eq("id", id);
-				if (error) throw new Error("Supabase: " + error.message);
+				// DELETE è idempotente: ritentare è sicuro.
+				return withRetry(async () => {
+					const { error } = await sb.from(table).delete().eq("id", id);
+					if (error) throw new Error("Supabase: " + error.message);
+				});
 			}
 			async function sbUpsertSetting(key, value) {
-				const { error } = await sb
-					.from("settings")
-					.upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" });
-				if (error) throw new Error("Supabase: " + error.message);
+				// UPSERT è idempotente: ritentare è sicuro.
+				return withRetry(async () => {
+					const { error } = await sb
+						.from("settings")
+						.upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" });
+					if (error) throw new Error("Supabase: " + error.message);
+				});
 			}
 
 			// ── Colonne ridotte per il polling/lista (admin grid) ─────────────────
@@ -2864,16 +2898,33 @@
 				lo.style.display = "flex";
 				setSyncStatus("syncing", "Connessione...");
 				try {
-					document.getElementById("loader-text").textContent = "Caricamento veicoli...";
+					const loaderText = document.getElementById("loader-text");
+					loaderText.textContent = "Caricamento veicoli...";
 
 					// Usa la cache sessionStorage se disponibile e fresca
 					const cachedCards    = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
 					const cachedSettings = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
 
-					const [rawCards, settings] = await Promise.all([
-						cachedCards    ? Promise.resolve(cachedCards)    : dbGetCards(),
-						cachedSettings ? Promise.resolve(cachedSettings) : dbGetSettings(),
-					]);
+					// Se non in cache mostra feedback durante eventuali retry per timeout
+					if (!cachedCards || !cachedSettings) {
+						let attempt = 0;
+						const origWithRetry = window._withRetryHook; // non sovrascrivere globalmente
+						const interval = setInterval(() => {
+							attempt++;
+							if (attempt > 1) loaderText.textContent = `Riconnessione... (tentativo ${attempt})`;
+						}, 1500);
+						try {
+							var [rawCards, settings] = await Promise.all([
+								cachedCards    ? Promise.resolve(cachedCards)    : dbGetCards(),
+								cachedSettings ? Promise.resolve(cachedSettings) : dbGetSettings(),
+							]);
+						} finally {
+							clearInterval(interval);
+							loaderText.textContent = "Caricamento veicoli...";
+						}
+					} else {
+						var [rawCards, settings] = [cachedCards, cachedSettings];
+					}
 
 					// rawCards dalla cache sono già oggetti card; dal DB sono righe raw
 					const isRaw = rawCards?.[0] && "description" in rawCards[0] === false
