@@ -2627,25 +2627,43 @@
 			// category/transmission incluse: servono ai filtri chip e al footer della card.
 			const CARD_COLS = "id,brand,model,year,km,price,fuel,hp,emoji,status,images,category,transmission,created_at";
 
-			// ── Cache sessionStorage per le card ───────────────────────────────────
-			// Evita la chiamata iniziale se la pagina viene riaperta entro il TTL.
-			const CACHE_KEY_CARDS    = "gg_admin_cards_v2";
-			const CACHE_KEY_SETTINGS = "gg_admin_settings_v2";
-			const CACHE_TTL_CARDS    = 2 * 60 * 1000;   // 2 min (admin vuole dati freschi)
-			const CACHE_TTL_SETTINGS = 10 * 60 * 1000;  // 10 min
+			// ── Cache localStorage per le card ────────────────────────────────────
+			// localStorage persiste tra sessioni, tab e riavvii del browser:
+			// l'utente vede le auto istantaneamente ad ogni apertura dopo la prima.
+			// TTL più lungo perché il fetch in background aggiorna comunque i dati
+			// freschi in modo silenzioso — la cache è solo il primo rendering.
+			const CACHE_KEY_CARDS    = "gg_admin_cards_v3";
+			const CACHE_KEY_SETTINGS = "gg_admin_settings_v3";
+			const CACHE_TTL_CARDS    = 24 * 60 * 60 * 1000; // 24h — aggiornato in background
+			const CACHE_TTL_SETTINGS = 60 * 60 * 1000;      // 1h
+
+			// Timeout client-side per i fetch: se Supabase non risponde entro
+			// questo tempo, usiamo la cache senza mostrare errori all'utente.
+			const FETCH_TIMEOUT_MS = 10_000; // 10s
 
 			function cacheRead(key, ttl) {
 				try {
-					const c = JSON.parse(sessionStorage.getItem(key));
+					const c = JSON.parse(localStorage.getItem(key));
 					if (c && Date.now() - c.ts < ttl) return c.data;
 				} catch {}
 				return null;
 			}
 			function cacheWrite(key, data) {
-				try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+				try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 			}
 			function cacheInvalidate(key) {
-				try { sessionStorage.removeItem(key); } catch {}
+				try { localStorage.removeItem(key); } catch {}
+			}
+
+			// Wrappa una promise con un timeout client-side: se non risponde
+			// entro FETCH_TIMEOUT_MS lancia un errore invece di aspettare indefinitamente.
+			function withTimeout(promise, ms = FETCH_TIMEOUT_MS) {
+				return Promise.race([
+					promise,
+					new Promise((_, reject) =>
+						setTimeout(() => reject(new Error("timeout")), ms)
+					),
+				]);
 			}
 
 			// ── LRU in-memory per i dettagli singolo veicolo (max 30 entry) ───────
@@ -2837,7 +2855,7 @@
 				if (_pollBusy) { schedulePoll(); return; }
 				_pollBusy = true;
 				try {
-					const rows = await dbGetCards();
+					const rows = await withTimeout(dbGetCards());
 					const hash = cardsHash(rows || []);
 					if (hash !== window._carsHash) {
 						window._carsHash = hash;
@@ -2911,8 +2929,8 @@
 					setSyncStatus("syncing", "Aggiornamento...");
 					try {
 						const [rawCards, settings] = await Promise.all([
-							needCards    ? dbGetCards()    : Promise.resolve(null),
-							needSettings ? dbGetSettings() : Promise.resolve(null),
+							needCards    ? withTimeout(dbGetCards())    : Promise.resolve(null),
+							needSettings ? withTimeout(dbGetSettings()) : Promise.resolve(null),
 						]);
 
 						if (rawCards) {
@@ -2966,7 +2984,7 @@
 			// mostrare loading — aggiorna solo se i dati sono effettivamente cambiati
 			async function refreshInBackground() {
 				try {
-					const rows = await dbGetCards();
+					const rows = await withTimeout(dbGetCards());
 					const hash = cardsHash(rows || []);
 					if (hash !== window._carsHash) {
 						window._carsHash = hash;
