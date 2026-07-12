@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co https://vercel-insights.com https://*.vercel-insights.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.vercel-insights.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
 		/>
 		<meta name="referrer" content="strict-origin-when-cross-origin" />
 		<meta
@@ -22,6 +22,8 @@
 		/>
 		<!-- Supabase JS v2: gestisce Auth (JWT, refresh token, sessione sicura) -->
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+	<!-- Vercel Web Analytics -->
+	<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
 		<style>
 			/* ── TOKENS ─────────────────────────────────────── */
 			:root {
