@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co https://vercel-insights.com https://*.vercel-insights.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.vercel-insights.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+			content="default-src 'self'; connect-src 'self' https://unkfxrrdpheqhpibwohp.supabase.co https://vercel-insights.com https://*.vercel-insights.com; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.vercel-insights.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
 		/>
 		<meta name="referrer" content="strict-origin-when-cross-origin" />
 		<meta
@@ -22,8 +22,8 @@
 		/>
 		<!-- Supabase JS v2: gestisce Auth (JWT, refresh token, sessione sicura) -->
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-	<!-- Vercel Web Analytics -->
-	<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+		<!-- Vercel Web Analytics -->
+		<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
 		<style>
 			/* ── TOKENS ─────────────────────────────────────── */
 			:root {
@@ -1627,10 +1627,10 @@
 					grid-template-columns: 1fr 1fr;
 				}
 				.dealer-services-grid {
-        	display: grid;
-        	grid-template-columns: 1fr; 
-        	gap: 12px; 
-    		}
+					display: grid;
+					grid-template-columns: 1fr;
+					gap: 12px;
+				}
 			}
 
 			.settings-page-title {
@@ -1670,7 +1670,11 @@
 
 			<div class="branding">
 				<div class="nav-logo" onclick="scrollToSection('hero')">
-					<img src="./common/img/logo.png" alt="G&G Car Solution" class="nav-logo-img" />
+					<img
+						src="./common/img/logo.png"
+						alt="G&G Car Solution"
+						class="nav-logo-img"
+					/>
 				</div>
 			</div>
 
@@ -1919,7 +1923,11 @@
 			<div class="modal modal-sm">
 				<div class="modal-body">
 					<div class="auth-logo">
-						<img src="common/img/logo.png" alt="G&G Car Solution" class="auth-logo-img">
+						<img
+							src="common/img/logo.png"
+							alt="G&G Car Solution"
+							class="auth-logo-img"
+						/>
 					</div>
 					<div class="auth-sub">Accedi al portale di gestione</div>
 					<div class="auth-error" id="auth-error">Password non valida.</div>
@@ -2033,7 +2041,9 @@
 							<div class="upload-hint">
 								Trascina le foto o clicca per selezionare
 							</div>
-							<div class="upload-sub">JPG, PNG, WebP — max 2MB per foto</div>
+							<div class="upload-sub">
+								JPG, PNG, WebP — max 5MB · Le foto vengono caricate su cloud
+							</div>
 						</div>
 						<div class="img-previews" id="img-previews"></div>
 					</div>
@@ -2438,7 +2448,11 @@
 		<!-- ADMIN PANEL -->
 		<div id="admin-panel">
 			<div class="admin-header">
-				<img src="common/img/logo.png" alt="G&G Car Solution" class="admin-logo-img">
+				<img
+					src="common/img/logo.png"
+					alt="G&G Car Solution"
+					class="admin-logo-img"
+				/>
 
 				<div class="admin-title">PANNELLO ADMIN</div>
 				<span class="admin-badge">Amministratore</span>
@@ -2574,8 +2588,12 @@
 			// lato server — non più un controllo "decorativo" in JS.
 			async function sbSelect(table, query = {}) {
 				let q = sb.from(table).select(query.columns || "*");
-				if (query.eq)    for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
-				if (query.order) q = q.order(query.order.col, { ascending: query.order.asc !== false });
+				if (query.eq)
+					for (const [k, v] of Object.entries(query.eq)) q = q.eq(k, v);
+				if (query.order)
+					q = q.order(query.order.col, {
+						ascending: query.order.asc !== false,
+					});
 				if (query.limit) q = q.limit(query.limit);
 				const { data, error } = await q;
 				if (error) throw new Error("Supabase: " + error.message);
@@ -2587,7 +2605,11 @@
 				return data?.[0] ?? null;
 			}
 			async function sbUpdate(table, id, patch) {
-				const { data, error } = await sb.from(table).update(patch).eq("id", id).select();
+				const { data, error } = await sb
+					.from(table)
+					.update(patch)
+					.eq("id", id)
+					.select();
 				if (error) throw new Error("Supabase: " + error.message);
 				return data?.[0] ?? null;
 			}
@@ -2605,14 +2627,15 @@
 			// ── Colonne ridotte per il polling/lista (admin grid) ─────────────────
 			// ~14 colonne vs SELECT * (~32). Risparmio ~55% egress per ogni poll.
 			// category/transmission incluse: servono ai filtri chip e al footer della card.
-			const CARD_COLS = "id,brand,model,year,km,price,fuel,hp,emoji,status,images,category,transmission,created_at";
+			const CARD_COLS =
+				"id,brand,model,year,km,price,fuel,hp,emoji,status,images,category,transmission,created_at";
 
 			// ── Cache sessionStorage per le card ───────────────────────────────────
 			// Evita la chiamata iniziale se la pagina viene riaperta entro il TTL.
-			const CACHE_KEY_CARDS    = "gg_admin_cards_v2";
+			const CACHE_KEY_CARDS = "gg_admin_cards_v2";
 			const CACHE_KEY_SETTINGS = "gg_admin_settings_v2";
-			const CACHE_TTL_CARDS    = 2 * 60 * 1000;   // 2 min (admin vuole dati freschi)
-			const CACHE_TTL_SETTINGS = 10 * 60 * 1000;  // 10 min
+			const CACHE_TTL_CARDS = 2 * 60 * 1000; // 2 min (admin vuole dati freschi)
+			const CACHE_TTL_SETTINGS = 10 * 60 * 1000; // 10 min
 
 			function cacheRead(key, ttl) {
 				try {
@@ -2622,21 +2645,30 @@
 				return null;
 			}
 			function cacheWrite(key, data) {
-				try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+				try {
+					sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+				} catch {}
 			}
 			function cacheInvalidate(key) {
-				try { sessionStorage.removeItem(key); } catch {}
+				try {
+					sessionStorage.removeItem(key);
+				} catch {}
 			}
 
 			// ── LRU in-memory per i dettagli singolo veicolo (max 30 entry) ───────
 			// Quando l'admin apre il form di modifica, non ri-scarica se già noto.
 			const _detailCache = new Map();
-			function detailCacheGet(id) { return _detailCache.get(id) ?? null; }
+			function detailCacheGet(id) {
+				return _detailCache.get(id) ?? null;
+			}
 			function detailCacheSet(id, data) {
-				if (_detailCache.size >= 30) _detailCache.delete(_detailCache.keys().next().value);
+				if (_detailCache.size >= 30)
+					_detailCache.delete(_detailCache.keys().next().value);
 				_detailCache.set(id, data);
 			}
-			function detailCacheInvalidate(id) { _detailCache.delete(id); }
+			function detailCacheInvalidate(id) {
+				_detailCache.delete(id);
+			}
 
 			// ── DB FUNCTIONS ───────────────────────────────────────────────────────
 
@@ -2653,7 +2685,8 @@
 				const cached = detailCacheGet(id);
 				if (cached) return cached;
 				const safeId = Number.parseInt(id, 10);
-				if (!Number.isSafeInteger(safeId) || safeId <= 0) throw new Error("ID non valido.");
+				if (!Number.isSafeInteger(safeId) || safeId <= 0)
+					throw new Error("ID non valido.");
 				const rows = await sbSelect("cars", { eq: { id: safeId }, limit: 1 });
 				const row = rows?.[0] ?? null;
 				if (row) detailCacheSet(id, rowToCar(row));
@@ -2690,8 +2723,11 @@
 				const rows = await sbSelect("settings", { columns: "key,value" });
 				const o = {};
 				(rows || []).forEach((r) => {
-					try { o[r.key] = JSON.parse(r.value); }
-					catch { o[r.key] = r.value; }
+					try {
+						o[r.key] = JSON.parse(r.value);
+					} catch {
+						o[r.key] = r.value;
+					}
 				});
 				cacheWrite(CACHE_KEY_SETTINGS, o);
 				return o;
@@ -2703,45 +2739,84 @@
 
 			function carToRow(c) {
 				return {
-					brand: c.brand, model: c.model,
-					year: c.year || null, km: c.km || null, price: c.price || null,
-					fuel: c.fuel || null, transmission: c.transmission || null,
-					category: c.category || null, hp: c.hp || null,
-					color: c.color || null, emoji: c.emoji || null,
-					status: c.status || "disponibile", description: c.desc || null,
-					optionals: c.optionals || [], images: c.images || [],
-					carrozzeria: c.carrozzeria || null, tipo_veicolo: c.tipo_veicolo || null,
-					trazione: c.trazione || null, posti: c.posti || null, porte: c.porte || null,
+					brand: c.brand,
+					model: c.model,
+					year: c.year || null,
+					km: c.km || null,
+					price: c.price || null,
+					fuel: c.fuel || null,
+					transmission: c.transmission || null,
+					category: c.category || null,
+					hp: c.hp || null,
+					color: c.color || null,
+					emoji: c.emoji || null,
+					status: c.status || "disponibile",
+					description: c.desc || null,
+					optionals: c.optionals || [],
+					images: c.images || [],
+					carrozzeria: c.carrozzeria || null,
+					tipo_veicolo: c.tipo_veicolo || null,
+					trazione: c.trazione || null,
+					posti: c.posti || null,
+					porte: c.porte || null,
 					per_neopatentati: c.per_neopatentati || false,
 					foto_dimostrative: c.foto_dimostrative || false,
 					mese_immatricolazione: c.mese_immatricolazione || null,
-					anno_produzione: c.anno_produzione || null, revisione: c.revisione || null,
-					cilindrata: c.cilindrata || null, valvole: c.valvole || null,
-					cilindri: c.cilindri || null, peso: c.peso || null,
-					classe_emissioni: c.classe_emissioni || null, emissioni_co2: c.emissioni_co2 || null,
-					colore_interno: c.colore_interno || null, tipo_interno: c.tipo_interno || null,
+					anno_produzione: c.anno_produzione || null,
+					revisione: c.revisione || null,
+					cilindrata: c.cilindrata || null,
+					valvole: c.valvole || null,
+					cilindri: c.cilindri || null,
+					peso: c.peso || null,
+					classe_emissioni: c.classe_emissioni || null,
+					emissioni_co2: c.emissioni_co2 || null,
+					colore_interno: c.colore_interno || null,
+					tipo_interno: c.tipo_interno || null,
 					colore_tetto: c.colore_tetto || null,
-					eq_comfort: c.eq_comfort || [], eq_media: c.eq_media || [],
+					eq_comfort: c.eq_comfort || [],
+					eq_media: c.eq_media || [],
 					eq_sicurezza: c.eq_sicurezza || [],
 				};
 			}
 			function rowToCar(r) {
 				return {
-					id: r.id, brand: r.brand, model: r.model, year: r.year, km: r.km,
-					price: r.price, fuel: r.fuel, transmission: r.transmission,
-					category: r.category, hp: r.hp, color: r.color, emoji: r.emoji,
-					status: r.status, desc: r.description,
-					optionals: r.optionals || [], images: r.images || [],
-					carrozzeria: r.carrozzeria, tipo_veicolo: r.tipo_veicolo,
-					trazione: r.trazione, posti: r.posti, porte: r.porte,
-					per_neopatentati: r.per_neopatentati, foto_dimostrative: r.foto_dimostrative,
+					id: r.id,
+					brand: r.brand,
+					model: r.model,
+					year: r.year,
+					km: r.km,
+					price: r.price,
+					fuel: r.fuel,
+					transmission: r.transmission,
+					category: r.category,
+					hp: r.hp,
+					color: r.color,
+					emoji: r.emoji,
+					status: r.status,
+					desc: r.description,
+					optionals: r.optionals || [],
+					images: r.images || [],
+					carrozzeria: r.carrozzeria,
+					tipo_veicolo: r.tipo_veicolo,
+					trazione: r.trazione,
+					posti: r.posti,
+					porte: r.porte,
+					per_neopatentati: r.per_neopatentati,
+					foto_dimostrative: r.foto_dimostrative,
 					mese_immatricolazione: r.mese_immatricolazione,
-					anno_produzione: r.anno_produzione, revisione: r.revisione,
-					cilindrata: r.cilindrata, valvole: r.valvole, cilindri: r.cilindri,
-					peso: r.peso, classe_emissioni: r.classe_emissioni,
-					emissioni_co2: r.emissioni_co2, colore_interno: r.colore_interno,
-					tipo_interno: r.tipo_interno, colore_tetto: r.colore_tetto,
-					eq_comfort: r.eq_comfort || [], eq_media: r.eq_media || [],
+					anno_produzione: r.anno_produzione,
+					revisione: r.revisione,
+					cilindrata: r.cilindrata,
+					valvole: r.valvole,
+					cilindri: r.cilindri,
+					peso: r.peso,
+					classe_emissioni: r.classe_emissioni,
+					emissioni_co2: r.emissioni_co2,
+					colore_interno: r.colore_interno,
+					tipo_interno: r.tipo_interno,
+					colore_tetto: r.colore_tetto,
+					eq_comfort: r.eq_comfort || [],
+					eq_media: r.eq_media || [],
 					eq_sicurezza: r.eq_sicurezza || [],
 				};
 			}
@@ -2798,23 +2873,28 @@
 			//  • Hash diff sui campi volatili: nessun re-render se nulla cambia
 			//  • Fetch usa CARD_COLS (colonne ridotte): -65% payload per chiamata
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-			const POLL_FG  = 5  * 60 * 1000;
-			const POLL_BG  = 15 * 60 * 1000;
+			const POLL_FG = 5 * 60 * 1000;
+			const POLL_BG = 15 * 60 * 1000;
 			const POLL_MAX = 30 * 60 * 1000;
 
 			let _pollTimer = null;
-			let _pollBusy  = false;
+			let _pollBusy = false;
 			let _pollDelay = POLL_FG;
 
 			function cardsHash(cards) {
-				return cards.map(c => `${c.id}:${c.status}:${c.price}:${c.km}`).join("|");
+				return cards
+					.map((c) => `${c.id}:${c.status}:${c.price}:${c.km}`)
+					.join("|");
 			}
 			function schedulePoll() {
 				clearTimeout(_pollTimer);
 				_pollTimer = setTimeout(doPoll, document.hidden ? POLL_BG : _pollDelay);
 			}
 			async function doPoll() {
-				if (_pollBusy) { schedulePoll(); return; }
+				if (_pollBusy) {
+					schedulePoll();
+					return;
+				}
 				_pollBusy = true;
 				try {
 					const rows = await dbGetCards();
@@ -2822,11 +2902,20 @@
 					if (hash !== window._carsHash) {
 						window._carsHash = hash;
 						// Aggiorna state con i dati leggeri
-						state.cars = (rows || []).map(r => ({
-							id: r.id, brand: r.brand, model: r.model, year: r.year,
-							km: r.km, price: r.price, fuel: r.fuel, hp: r.hp,
-							emoji: r.emoji, status: r.status, images: r.images || [],
-							category: r.category, transmission: r.transmission,
+						state.cars = (rows || []).map((r) => ({
+							id: r.id,
+							brand: r.brand,
+							model: r.model,
+							year: r.year,
+							km: r.km,
+							price: r.price,
+							fuel: r.fuel,
+							hp: r.hp,
+							emoji: r.emoji,
+							status: r.status,
+							images: r.images || [],
+							category: r.category,
+							transmission: r.transmission,
 							created_at: r.created_at,
 						}));
 						// Invalida i dettagli cached: il catalogo è cambiato
@@ -2859,48 +2948,69 @@
 				lo.style.display = "flex";
 				setSyncStatus("syncing", "Connessione...");
 				try {
-					document.getElementById("loader-text").textContent = "Caricamento veicoli...";
+					document.getElementById("loader-text").textContent =
+						"Caricamento veicoli...";
 
 					// Usa la cache sessionStorage se disponibile e fresca
-					const cachedCards    = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
-					const cachedSettings = cacheRead(CACHE_KEY_SETTINGS, CACHE_TTL_SETTINGS);
+					const cachedCards = cacheRead(CACHE_KEY_CARDS, CACHE_TTL_CARDS);
+					const cachedSettings = cacheRead(
+						CACHE_KEY_SETTINGS,
+						CACHE_TTL_SETTINGS,
+					);
 
 					const [rawCards, settings] = await Promise.all([
-						cachedCards    ? Promise.resolve(cachedCards)    : dbGetCards(),
+						cachedCards ? Promise.resolve(cachedCards) : dbGetCards(),
 						cachedSettings ? Promise.resolve(cachedSettings) : dbGetSettings(),
 					]);
 
 					// rawCards dalla cache sono già oggetti card; dal DB sono righe raw
-					const isRaw = rawCards?.[0] && "description" in rawCards[0] === false
-						&& rawCards[0]?.brand !== undefined
-						? false  // da cache → già card
-						: true;
+					const isRaw =
+						rawCards?.[0] &&
+						"description" in rawCards[0] === false &&
+						rawCards[0]?.brand !== undefined
+							? false // da cache → già card
+							: true;
 
-					state.cars = (rawCards || []).map(r => isRaw
-						? { id:r.id, brand:r.brand, model:r.model, year:r.year, km:r.km,
-							price:r.price, fuel:r.fuel, hp:r.hp, emoji:r.emoji,
-							status:r.status, images:r.images||[],
-							category:r.category, transmission:r.transmission,
-							created_at:r.created_at }
-						: r
+					state.cars = (rawCards || []).map((r) =>
+						isRaw
+							? {
+									id: r.id,
+									brand: r.brand,
+									model: r.model,
+									year: r.year,
+									km: r.km,
+									price: r.price,
+									fuel: r.fuel,
+									hp: r.hp,
+									emoji: r.emoji,
+									status: r.status,
+									images: r.images || [],
+									category: r.category,
+									transmission: r.transmission,
+									created_at: r.created_at,
+								}
+							: r,
 					);
 
-					if (!cachedCards)    cacheWrite(CACHE_KEY_CARDS, state.cars);
+					if (!cachedCards) cacheWrite(CACHE_KEY_CARDS, state.cars);
 					if (!cachedSettings) cacheWrite(CACHE_KEY_SETTINGS, settings);
 
 					// Salva hash iniziale per il polling diff
 					window._carsHash = cardsHash(state.cars);
 
 					if (settings.waNumber) state.settings.waNumber = settings.waNumber;
-					if (settings.name)     state.settings.name     = settings.name;
-					if (settings.address)  state.settings.address  = settings.address;
+					if (settings.name) state.settings.name = settings.name;
+					if (settings.address) state.settings.address = settings.address;
 
 					setSyncStatus("", cachedCards ? "Da cache ✓" : "Supabase ✓");
 				} catch (e) {
 					setSyncStatus("error", "Errore DB");
 					showToast("Errore connessione: " + e.message, "error");
 				}
-				requestAnimationFrame(() => { renderCars(); animateStat(); });
+				requestAnimationFrame(() => {
+					renderCars();
+					animateStat();
+				});
 				setTimeout(() => {
 					lo.classList.add("hidden");
 					setTimeout(() => (lo.style.display = "none"), 600);
@@ -2956,10 +3066,12 @@
 			const jsStr = (s) => JSON.stringify(String(s ?? ""));
 			const safeText = (s, fallback = "") => String(s ?? fallback);
 			const safeEmoji = (s) => esc(safeText(s, "🚗").slice(0, 8));
+
 			function safeImageSrc(src) {
 				const value = String(src || "").trim();
-				if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(value))
-					return value;
+				// Base64 non più accettato — solo URL HTTPS
+				// (le vecchie img base64 già salvate continuano a funzionare in lettura
+				//  ma non se ne salvano di nuove)
 				try {
 					const url = new URL(value, window.location.href);
 					return url.protocol === "https:" ? url.href : "";
@@ -2967,6 +3079,7 @@
 					return "";
 				}
 			}
+
 			function safeWhatsAppNumber() {
 				const digits = String(state.settings.waNumber || "")
 					.replace(/\D/g, "")
@@ -3037,10 +3150,14 @@
 				}
 				grid.innerHTML = list
 					.map((car) => {
-						const imageSrc = safeImageSrc(car.images?.[0]);
+						let imageSrc = safeImageSrc(car.images?.[0]);
+						if (imageSrc.includes("_full.webp")) {
+							imageSrc = imageSrc.replace("_full.webp", "_thumb.webp");
+						}
 						const img = car.images?.length
-							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
+							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
 							: `<div class="car-img-placeholder">${safeEmoji(car.emoji)}</div>`;
+
 						const waMessage = `Salve! Sono interessato al veicolo: ${safeText(car.brand)} ${safeText(car.model)} (${car.year || ""}). Potete darmi informazioni?`;
 						return `
     <div class="car-card" onclick="openCarDetail(${car.id})">
@@ -3260,9 +3377,7 @@
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 			function openWhatsApp(msg) {
 				const num = safeWhatsAppNumber();
-				openExternal(
-					`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,
-				);
+				openExternal(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`);
 			}
 
 			// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3499,7 +3614,10 @@
 			function addPendingImage(src) {
 				const safeSrc = safeImageSrc(src);
 				if (!safeSrc) {
-					showToast("Immagine non valida: usa HTTPS o file immagine supportati.", "error");
+					showToast(
+						"Immagine non valida: usa HTTPS o file immagine supportati.",
+						"error",
+					);
 					return;
 				}
 				state.pendingImages.push(safeSrc);
@@ -3527,19 +3645,85 @@
 				addPendingImage(url);
 				inp.value = "";
 			}
-			function handleFileUpload(input) {
-				Array.from(input.files || []).forEach((file) => {
+			async function handleFileUpload(input) {
+				const files = Array.from(input.files || []);
+				for (const file of files) {
 					if (!/^image\/(png|jpe?g|gif|webp)$/i.test(file.type)) {
-						showToast(`${file.name}: formato immagine non supportato`, "error");
-						return;
+						showToast(`${file.name}: formato non supportato`, "error");
+						continue;
 					}
-					if (file.size > 2.5 * 1024 * 1024) {
-						showToast(`${file.name}: troppo grande (max 2MB)`, "error");
-						return;
+
+					showToast(`Ottimizzazione in corso...`, "info");
+
+					try {
+						// 1. Genera le due versioni (Full e Miniatura)
+						const fullBlob = await compressImage(file, 1200, 0.8);
+						const thumbBlob = await compressImage(file, 400, 0.6);
+
+						// Genera nomi univoci ma prevedibili per rintracciarli facilmente
+						const baseName = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+						const fullName = `${baseName}_full.webp`;
+						const thumbName = `${baseName}_thumb.webp`;
+
+						// 2. Carica sul bucket usando il client Supabase (Auth automatica)
+						const { error: errFull } = await sb.storage
+							.from("car-images")
+							.upload(fullName, fullBlob, {
+								contentType: "image/webp",
+								upsert: true,
+							});
+						if (errFull) throw errFull;
+
+						const { error: errThumb } = await sb.storage
+							.from("car-images")
+							.upload(thumbName, thumbBlob, {
+								contentType: "image/webp",
+								upsert: true,
+							});
+						if (errThumb) throw errThumb;
+
+						// 3. Salva nell'array del veicolo SOLO l'URL pubblico della foto grande
+						const { data: urlData } = sb.storage
+							.from("car-images")
+							.getPublicUrl(fullName);
+						addPendingImage(urlData.publicUrl);
+
+						showToast(`${file.name} caricata ✓`, "success");
+					} catch (e) {
+						console.error(e);
+						showToast(`Errore: Impossibile caricare immagine`, "error");
 					}
-					const r = new FileReader();
-					r.onload = (e) => addPendingImage(e.target.result);
-					r.readAsDataURL(file);
+				}
+				input.value = "";
+			}
+			// Comprimi immagine via canvas — max larghezza e qualità configurabili
+			function compressImage(file, maxWidth = 1200, quality = 0.8) {
+				return new Promise((resolve, reject) => {
+					const img = new Image();
+					const url = URL.createObjectURL(file);
+					img.onload = () => {
+						URL.revokeObjectURL(url);
+						const scale = Math.min(1, maxWidth / img.width);
+						const w = Math.round(img.width * scale);
+						const h = Math.round(img.height * scale);
+						const canvas = document.createElement("canvas");
+						canvas.width = w;
+						canvas.height = h;
+						const ctx = canvas.getContext("2d");
+						ctx.drawImage(img, 0, 0, w, h);
+
+						// Modificato da "image/jpeg" a "image/webp"
+						canvas.toBlob(
+							(blob) => {
+								if (!blob) return reject(new Error("Compressione fallita"));
+								resolve(blob);
+							},
+							"image/webp",
+							quality,
+						);
+					};
+					img.onerror = reject;
+					img.src = url;
 				});
 			}
 			const gv = (id) => (document.getElementById(id)?.value || "").trim();
@@ -3620,11 +3804,18 @@
 				function toCard(row, carData, id) {
 					return {
 						id: row?.id ?? id,
-						brand: carData.brand, model: carData.model,
-						year: carData.year, km: carData.km, price: carData.price,
-						fuel: carData.fuel, hp: carData.hp, emoji: carData.emoji,
-						status: carData.status, images: carData.images || [],
-						category: carData.category, transmission: carData.transmission,
+						brand: carData.brand,
+						model: carData.model,
+						year: carData.year,
+						km: carData.km,
+						price: carData.price,
+						fuel: carData.fuel,
+						hp: carData.hp,
+						emoji: carData.emoji,
+						status: carData.status,
+						images: carData.images || [],
+						category: carData.category,
+						transmission: carData.transmission,
 						created_at: row?.created_at ?? new Date().toISOString(),
 					};
 				}
@@ -3632,7 +3823,8 @@
 					if (state.editingId) {
 						const up = await dbUpdateCar(state.editingId, carData);
 						const idx = state.cars.findIndex((c) => c.id === state.editingId);
-						if (idx !== -1) state.cars[idx] = toCard(up, carData, state.editingId);
+						if (idx !== -1)
+							state.cars[idx] = toCard(up, carData, state.editingId);
 						showToast("Veicolo aggiornato", "success");
 					} else {
 						const inserted = await dbInsertCar(carData);
@@ -3643,7 +3835,10 @@
 					window._carsHash = cardsHash(state.cars);
 					cacheWrite(CACHE_KEY_CARDS, state.cars);
 					setSyncStatus("", "Supabase ✓");
-					requestAnimationFrame(() => { renderCars(); renderAdminCars(); });
+					requestAnimationFrame(() => {
+						renderCars();
+						renderAdminCars();
+					});
 					closeModal("car-form-modal");
 				} catch (e) {
 					setSyncStatus("error", "Errore");
@@ -3652,18 +3847,43 @@
 				btn.disabled = false;
 				btn.textContent = "Salva Veicolo";
 			}
+
+			async function deleteCarImages(images) {
+				if (!images?.length) return;
+
+				let paths = images
+					.filter((url) => url.includes("/car-images/"))
+					.map((url) => url.split("/car-images/").pop());
+
+				// Trova automaticamente anche i file miniatura orfani da eliminare
+				const thumbPaths = paths
+					.filter((p) => p.includes("_full.webp"))
+					.map((p) => p.replace("_full.webp", "_thumb.webp"));
+
+				// Unisci le due liste
+				paths = [...paths, ...thumbPaths];
+
+				if (!paths.length) return;
+
+				await sb.storage.from("car-images").remove(paths);
+			}
+
 			async function deleteCar(id) {
 				if (!requireAdmin()) return;
 				const car = state.cars.find((c) => c.id === id);
 				if (!car || !confirm(`Eliminare "${car.brand} ${car.model}"?`)) return;
 				setSyncStatus("syncing", "Eliminazione...");
 				try {
+					await deleteCarImages(car.images);
 					await dbDeleteCar(id);
 					state.cars = state.cars.filter((c) => c.id !== id);
 					window._carsHash = cardsHash(state.cars);
 					cacheWrite(CACHE_KEY_CARDS, state.cars);
 					setSyncStatus("", "Supabase ✓");
-					requestAnimationFrame(() => { renderCars(); renderAdminCars(); });
+					requestAnimationFrame(() => {
+						renderCars();
+						renderAdminCars();
+					});
 					showToast("Veicolo eliminato", "info");
 				} catch (e) {
 					setSyncStatus("error", "Errore");
