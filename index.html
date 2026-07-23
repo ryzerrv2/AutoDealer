@@ -24,6 +24,20 @@
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 		<!-- Vercel Web Analytics -->
 		<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+		<!-- Google tag (gtag.js) -->
+		<script
+			async
+			src="https://www.googletagmanager.com/gtag/js?id=G-JC8HCG48FX"
+		></script>
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag() {
+				dataLayer.push(arguments);
+			}
+			gtag("js", new Date());
+
+			gtag("config", "G-JC8HCG48FX");
+		</script>
 		<style>
 			/* ── TOKENS ─────────────────────────────────────── */
 			:root {
