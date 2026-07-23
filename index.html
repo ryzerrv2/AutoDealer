@@ -12,6 +12,7 @@
 			http-equiv="Permissions-Policy"
 			content="camera=(), microphone=(), geolocation=(), payment=()"
 		/>
+		<link rel="icon" href="common/img/logo.png" type="image/x-icon" />
 		<title>G&GCarSolution — Concessionaria Auto Usate</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,6 +21,50 @@
 			href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display:ital@0;1&display=swap"
 			rel="stylesheet"
 		/>
+		<!-- Inizio Dati Strutturati SEO (Schema.org) per G&G Car Solution -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "AutoDealer",
+				"name": "G&G Car Solution",
+				"legalName": "RORI DI PALERMO ROSSETTI ROCCO",
+				"image": "https://www.ggcarsolution.it/common/img/logo.png",
+				"@id": "https://www.ggcarsolution.it",
+				"url": "https://www.ggcarsolution.it",
+				"telephone": "+393932994862",
+				"vatID": "01957260647",
+				"address": {
+					"@type": "PostalAddress",
+					"streetAddress": "Piano Pantano 104",
+					"addressLocality": "Mirabella Eclano",
+					"addressRegion": "AV",
+					"postalCode": "83036",
+					"addressCountry": "IT"
+				},
+				"geo": {
+					"@type": "GeoCoordinates",
+					"latitude": "41.06016434876144",
+					"longitude": "14.994315266247822"
+				},
+				"openingHoursSpecification": [
+					{
+						"@type": "OpeningHoursSpecification",
+						"dayOfWeek": [
+							"Monday",
+							"Tuesday",
+							"Wednesday",
+							"Thursday",
+							"Friday",
+							"Saturday"
+						],
+						"opens": "08:00",
+						"closes": "20:00"
+					}
+				],
+				"priceRange": "€€-€€€"
+			}
+		</script>
+		<!-- Fine Dati Strutturati -->
 		<!-- Supabase JS v2: gestisce Auth (JWT, refresh token, sessione sicura) -->
 		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 		<!-- Vercel Web Analytics -->
