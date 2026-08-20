@@ -71,7 +71,11 @@
 		<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
 		<!-- Vercel Speed Insights -->
 		<script>
-			window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+			window.si =
+				window.si ||
+				function () {
+					(window.siq = window.siq || []).push(arguments);
+				};
 		</script>
 		<script defer src="/_vercel/speed-insights/script.js"></script>
 		<!-- Google tag (gtag.js) -->
@@ -3215,9 +3219,6 @@
 				grid.innerHTML = list
 					.map((car) => {
 						let imageSrc = safeImageSrc(car.images?.[0]);
-						if (imageSrc.includes("_full.webp")) {
-							imageSrc = imageSrc.replace("_full.webp", "_thumb.webp");
-						}
 						const img = car.images?.length
 							? `<img src="${esc(imageSrc)}" alt="${esc(car.brand)} ${esc(car.model)}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="car-img-placeholder" style="display:none">${safeEmoji(car.emoji)}</div>`
 							: `<div class="car-img-placeholder">${safeEmoji(car.emoji)}</div>`;
@@ -3717,39 +3718,30 @@
 						continue;
 					}
 
-					showToast(`Ottimizzazione in corso...`, "info");
+					showToast(`Ottimizzazione in alta qualità...`, "info");
 
 					try {
-						// 1. Genera le due versioni (Full e Miniatura)
-						const fullBlob = await compressImage(file, 1200, 0.8);
-						const thumbBlob = await compressImage(file, 400, 0.6);
+						// Genera UNA SOLA versione ad Altissima Definizione (Full HD, 95% qualità)
+						const highResBlob = await compressImage(file, 1920, 0.95);
 
-						// Genera nomi univoci ma prevedibili per rintracciarli facilmente
-						const baseName = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-						const fullName = `${baseName}_full.webp`;
-						const thumbName = `${baseName}_thumb.webp`;
+						// Genera un nome univoco (senza più _full o _thumb)
+						const nomeUnivoco = `${Date.now()}_${Math.random().toString(36).slice(2)}.webp`;
 
-						// 2. Carica sul bucket usando il client Supabase (Auth automatica)
-						const { error: errFull } = await sb.storage
+						// Carica sul bucket
+						const { error } = await sb.storage
 							.from("car-images")
-							.upload(fullName, fullBlob, {
+							.upload(nomeUnivoco, highResBlob, {
 								contentType: "image/webp",
 								upsert: true,
 							});
-						if (errFull) throw errFull;
 
-						const { error: errThumb } = await sb.storage
-							.from("car-images")
-							.upload(thumbName, thumbBlob, {
-								contentType: "image/webp",
-								upsert: true,
-							});
-						if (errThumb) throw errThumb;
+						if (error) throw error;
 
-						// 3. Salva nell'array del veicolo SOLO l'URL pubblico della foto grande
+						// Salva l'URL pubblico
 						const { data: urlData } = sb.storage
 							.from("car-images")
-							.getPublicUrl(fullName);
+							.getPublicUrl(nomeUnivoco);
+
 						addPendingImage(urlData.publicUrl);
 
 						showToast(`${file.name} caricata ✓`, "success");
@@ -3760,7 +3752,6 @@
 				}
 				input.value = "";
 			}
-			// Comprimi immagine via canvas — max larghezza e qualità configurabili
 			function compressImage(file, maxWidth = 1200, quality = 0.8) {
 				return new Promise((resolve, reject) => {
 					const img = new Image();
@@ -3915,23 +3906,15 @@
 			async function deleteCarImages(images) {
 				if (!images?.length) return;
 
-				let paths = images
+				const paths = images
 					.filter((url) => url.includes("/car-images/"))
 					.map((url) => url.split("/car-images/").pop());
-
-				// Trova automaticamente anche i file miniatura orfani da eliminare
-				const thumbPaths = paths
-					.filter((p) => p.includes("_full.webp"))
-					.map((p) => p.replace("_full.webp", "_thumb.webp"));
-
-				// Unisci le due liste
-				paths = [...paths, ...thumbPaths];
 
 				if (!paths.length) return;
 
 				await sb.storage.from("car-images").remove(paths);
 			}
-
+			
 			async function deleteCar(id) {
 				if (!requireAdmin()) return;
 				const car = state.cars.find((c) => c.id === id);
